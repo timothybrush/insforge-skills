@@ -1,4 +1,4 @@
-# `insforge posthog setup`
+# npx @insforge/cli posthog setup
 
 One-shot CLI command that connects an InsForge project to PostHog (provisioning a PostHog account if needed) and installs the PostHog SDK into the current directory's app via deterministic per-framework templates.
 
@@ -73,12 +73,8 @@ Returns `{"status": 1}` on success. The InsForge Analytics dashboard updates wit
 
 | Mistake | Solution |
 |---------|----------|
-| Running `insforge posthog setup` outside the linked project directory | The CLI reads `.insforge/project.json` from cwd. Run it from the project root after `insforge link --project-id <id>` |
+| Running `npx @insforge/cli posthog setup` outside the linked project directory | The CLI reads `.insforge/project.json` from cwd. Run it from the project root after `npx @insforge/cli link --project-id <id>` |
 | Framework not auto-detected (Bun, Deno, Solid, custom setups) | The CLI prints the `phc_` key + host and a link to PostHog's docs for that framework — install posthog-js manually following PostHog's guide |
 | Next.js App Router setup leaves PostHog "uninitialised" at runtime | The CLI writes `posthog-provider.tsx` but does **not** auto-edit `app/layout.tsx`. Wrap `<body>{children}</body>` with `<PostHogProvider>` from the printed note, or have your AI coding agent apply the change |
 | `posthog-provider.tsx` already exists from a prior setup | The CLI skips overwriting the file (logs `already calls posthog.init — leaving it alone`). Either delete the file and re-run, or hand-edit it |
 | `.env.local` already has a different `NEXT_PUBLIC_POSTHOG_KEY` | The CLI keeps the existing value and logs a warning — manually reconcile if you intended to switch projects |
-
-## Related
-
-For the broader integration story (architecture, plan limits, how dashboard analytics render), see the **insforge-integrations** skill's PostHog reference.
