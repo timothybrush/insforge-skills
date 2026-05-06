@@ -163,6 +163,105 @@ For browser apps, call `getCurrentUser()` during startup. The SDK will use the h
 
 For `isServerMode: true`, call `refreshSession({ refreshToken })` explicitly when you need to refresh an expired access token.
 
+### Cold loads & external redirects
+
+In browser apps, the access token is stored in memory only. On a cold page load, `getCurrentUser()` starts with no in-memory access token, so the SDK rehydrates the session by calling `POST /api/auth/refresh` with the httpOnly refresh cookie and the JS-readable `insforge_csrf_token` cookie/header flow. During that network round-trip, `user` is temporarily `null`.
+
+Any auth wrapper or hook should expose both `user` and `loading`, not just `user`:
+
+```tsx
+import { createContext, useContext, useEffect, useState } from 'react'
+
+const AuthContext = createContext({ user: null, loading: true })
+
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function hydrateAuth() {
+      const { data, error } = await insforge.auth.getCurrentUser()
+      if (cancelled) return
+      setUser(error ? null : (data?.user ?? null))
+      setLoading(false)
+    }
+
+    void hydrateAuth()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  return (
+    <AuthContext.Provider value={{ user, loading }}>
+      {children}
+    </AuthContext.Provider>
+  )
+}
+
+export function useAuth() {
+  return useContext(AuthContext)
+}
+```
+
+When auth state controls visible UI, gate the logged-in vs logged-out branch on `loading`:
+
+```tsx
+function Layout() {
+  const { user, loading } = useAuth()
+
+  return (
+    <header>
+      {loading ? <div className="auth-skeleton" /> : user ? <AccountMenu /> : <SignInButton />}
+    </header>
+  )
+}
+```
+
+This matters most when the user lands back in your app after an external redirect:
+
+- Post-OAuth callback
+- Stripe Checkout success or cancel URL
+- Stripe Customer Portal return URL
+- Password-reset link landing
+- Email-verification link landing
+
+### Don't fire user-dependent side effects during auth loading
+
+If a mount-time effect branches on the current user, guard the user-dependent work until `loading === false`. This is especially important for code paths that do one thing for signed-in users and another for guests.
+
+```tsx
+const [shouldRunAction, setShouldRunAction] = useState(false)
+const handled = useRef(false)
+const userId = user?.id ?? null
+
+useEffect(() => {
+  const handleStatusChanged = ({ id, status }) => {
+    if (id === resourceId && status === 'ready') {
+      setShouldRunAction(true)
+    }
+  }
+
+  insforge.realtime.on('status_changed', handleStatusChanged)
+  return () => insforge.realtime.off('status_changed', handleStatusChanged)
+}, [resourceId])
+
+useEffect(() => {
+  if (loading || !shouldRunAction || handled.current) return
+
+  async function runUserDependentAction() {
+    await performUserDependentAction({ userId })
+    handled.current = true
+  }
+
+  void runUserDependentAction()
+}, [loading, shouldRunAction, userId])
+```
+
+Webhook-backed Realtime flows can complete before the cold-load auth refresh finishes, especially after Stripe Checkout, Customer Portal, OAuth, password-reset, or email-verification redirects. If you use a `cleared.current` or other "first event wins" guard, do not flip it until `loading === false` and the user-dependent work has actually succeeded.
+
 ## Profile Management
 
 ```javascript

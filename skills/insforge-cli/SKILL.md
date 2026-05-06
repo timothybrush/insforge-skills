@@ -1,13 +1,13 @@
 ---
 name: insforge-cli
 description: >-
-  Use this skill whenever the user needs backend infrastructure management — creating database tables, running SQL, managing database migration files, deploying serverless functions, managing storage buckets, deploying frontend apps, adding secrets, setting up cron jobs, checking logs, or running backend diagnostics — especially if the project uses InsForge. Trigger on any of these contexts: creating or altering database tables/schemas, fetching or applying database migrations, writing RLS policies via SQL, deploying or invoking edge functions, creating storage buckets, deploying frontends to hosting, managing secrets/env vars, setting up scheduled tasks/cron, viewing backend logs, diagnosing backend health or performance issues, or exporting/importing database backups. If the user asks for these operations generically (e.g., "create a users table", "apply a migration", "deploy my app", "set up a cron job", "check backend health") and you're unsure whether they use InsForge, consult this skill and ask. For writing frontend application code with the InsForge SDK (@insforge/sdk), use the insforge skill instead.
-license: Apache-2.0
+  Use this skill when managing InsForge infrastructure with the CLI: projects, SQL, migrations, RLS policies, functions, storage buckets, frontend deployments, compute services, secrets/env vars, Stripe payment keys/catalog/products/prices/webhooks, schedules, logs, diagnostics, import/export, or **managing backend branches** (creating a branch project to test risky schema/auth/RLS changes, merging a branch back to prod, resolving merge conflicts). For app code with @insforge/sdk, use the insforge skill instead.
+license: MIT
 metadata:
   author: insforge
-  version: "1.1.0"
+  version: "1.3.0"
   organization: InsForge
-  date: February 2026
+  date: May 2026
 ---
 
 # InsForge CLI
@@ -33,6 +33,8 @@ npx @insforge/cli current   # verify linked project
 
 If not authenticated: `npx @insforge/cli login`
 If no project linked: `npx @insforge/cli create` (new) or `npx @insforge/cli link` (existing)
+
+> **Important:** In InsForge, API keys are full-access admin keys, equivalent to service role keys on other platforms. Treat them as server-only secrets and never expose them in frontend code or public env vars.
 
 ## Global Options
 
@@ -104,8 +106,29 @@ If no project linked: `npx @insforge/cli create` (new) or `npx @insforge/cli lin
 - `npx @insforge/cli storage upload <file> --bucket <name> [--key <objectKey>]` — upload file
 - `npx @insforge/cli storage download <objectKey> --bucket <name> [--output <path>]` — download file
 
-### Deployments — `npx @insforge/cli deployments`
-- `npx @insforge/cli deployments deploy [dir]` — deploy frontend app. See [references/deployments-deploy.md](references/deployments-deploy.md)
+### Payments — `npx @insforge/cli payments`
+- `npx @insforge/cli payments status` — show Stripe key, account, sync, and webhook status
+- `npx @insforge/cli payments config / config set / config remove` — manage Stripe test/live secret keys. See [references/payments.md](references/payments.md)
+- `npx @insforge/cli payments sync [--environment test|live|all]` — sync products, prices, customers, and subscriptions from Stripe
+- `npx @insforge/cli payments webhooks configure <environment>` — create or recreate the managed Stripe webhook endpoint
+- `npx @insforge/cli payments catalog --environment <env>` — inspect mirrored products and prices together
+- `npx @insforge/cli payments customers --environment <env>` — admin/debug customer reads
+- `npx @insforge/cli payments products list/get/create/update/delete` — manage Stripe products
+- `npx @insforge/cli payments prices list/get/create/update/archive` — manage Stripe prices
+- `npx @insforge/cli payments subscriptions --environment <env>` — admin/debug subscription reads
+- `npx @insforge/cli payments history --environment <env>` — admin/debug payment history reads
+
+> ⚠️ **Private preview.** Payments are a new feature; older backends may not expose `/api/payments`.
+> **Availability:** If the CLI says `Payments are not available on this backend`, stop and ask the developer/admin to enable payments or upgrade the self-hosted InsForge instance. Do not work around this by storing Stripe secret keys with generic secrets or embedding Stripe secret keys in app code.
+> Agents should default to `--environment test` while building. Only use `live` after the developer explicitly approves production Stripe changes.
+
+### Frontend Deployments (Vercel) — `npx @insforge/cli deployments`
+
+Deploy a frontend application (static site / SPA / Next.js / etc.) to Vercel,
+managed through InsForge. For backend container workloads see **Backend Compute
+Services** below.
+
+- `npx @insforge/cli deployments deploy [dir]` — deploy frontend app from its source directory. See [references/deployments-deploy.md](references/deployments-deploy.md)
 - `npx @insforge/cli deployments list` — list deployments
 - `npx @insforge/cli deployments status <id> [--sync]` — get deployment status (--sync fetches from Vercel)
 - `npx @insforge/cli deployments cancel <id>` — cancel running deployment
@@ -113,19 +136,35 @@ If no project linked: `npx @insforge/cli create` (new) or `npx @insforge/cli lin
 - `npx @insforge/cli deployments env set <key> <value>` — create or update a deployment environment variable
 - `npx @insforge/cli deployments env delete <id>` — delete a deployment environment variable by ID
 
-### Compute Services — `npx @insforge/cli compute`
+### Backend Compute Services (Fly.io) — `npx @insforge/cli compute`
 
+Deploy and manage backend containerized services (APIs, workers, microservices).
+Each service runs as a Docker container reachable via a public HTTPS endpoint.
+For frontend hosting see **Frontend Deployments** above.
+
+> 🔧 **Implementation note (for agents):** InsForge runs compute on **Fly.io**
+> under the hood, but **DO NOT use `flyctl` directly** to deploy or manage
+> these services. The Fly account, org, IP allocation, and machine ownership
+> all live on the InsForge cloud — `flyctl` invoked with the user's own credentials
+> will land in the wrong org and fail with `unauthorized`. Always use
+> `npx @insforge/cli compute …`. The CLI is just an HTTP client that calls the
+> InsForge backend; the backend talks to Fly. No `flyctl` and no Fly token
+> are needed locally.
+
+> ⚠️ **In progress.** Compute services are still in development; the API and CLI may change.
+>
 > **Availability:** Compute requires the backend to have Fly.io configured. If not enabled, the API returns `COMPUTE_SERVICE_NOT_CONFIGURED` with setup instructions in `nextActions`. Follow those instructions.
 
 - `npx @insforge/cli compute list` — list all compute services (name, status, image, CPU, memory, endpoint)
 - `npx @insforge/cli compute get <id>` — get service details
-- `npx @insforge/cli compute create --name <name> --image <image> [--port 8080] [--cpu shared-1x] [--memory 512] [--region iad] [--env '{"KEY":"val"}']` — create and deploy a Docker container. See [references/compute-create.md](references/compute-create.md)
-- `npx @insforge/cli compute deploy [directory] --name <name> [--port] [--cpu] [--memory] [--region] [--env]` — build a Dockerfile and deploy via `flyctl deploy`. See [references/compute-deploy.md](references/compute-deploy.md)
-- `npx @insforge/cli compute update <id> [--image] [--port] [--cpu] [--memory] [--region]` — update service config
+- `npx @insforge/cli compute deploy [dir] --name <name> [--port] [--cpu] [--memory] [--region] [--env <json> | --env-file <path>]` — **source mode**: requires `flyctl` on PATH; **no local Docker daemon needed**. CLI shells out to `flyctl deploy --remote-only --build-only` using a short-lived per-app deploy token minted by InsForge cloud (the user never sees a Fly token). Build runs on Fly's remote builder; image is pushed to `registry.fly.io`; cloud launches the machine.
+- `npx @insforge/cli compute deploy --image <url> --name <name> [--port] [--cpu] [--memory] [--region] [--env <json> | --env-file <path>]` — **image mode**: deploys a pre-built image from any registry. **Nothing needed locally** beyond the InsForge CLI. Best for CI/CD pipelines and off-the-shelf images like `nginx:alpine`. Prefer `--env-file <path>` over inline `--env <json>` for >1 secret.
+- See [references/compute-deploy.md](references/compute-deploy.md) for both modes.
+- `npx @insforge/cli compute update <id> [--image] [--port] [--cpu] [--memory] [--region] [--env <json> | --env-set KEY=VALUE | --env-unset KEY]` — update service config. `--env-set`/`--env-unset` are **repeatable** and merge with existing env — use these to rotate one secret without restating the rest. `--env <json>` replaces wholesale and is mutually exclusive with the merge flags.
 - `npx @insforge/cli compute stop <id>` — stop a running service
 - `npx @insforge/cli compute start <id>` — start a stopped service
-- `npx @insforge/cli compute logs <id> [--limit 50]` — view machine event logs
-- `npx @insforge/cli compute delete <id>` — delete service and destroy Fly.io resources
+- `npx @insforge/cli compute events <id> [--limit 50]` — Fly machine **lifecycle events** (start/stop/exit/restart). Container stdout/stderr is NOT surfaced in v1 — that's roadmap work and will reuse the freed-up `compute logs` command name when it lands. To debug a crash-looping container today, reproduce locally with the same image.
+- `npx @insforge/cli compute delete <id>` — destroy the service and its Fly.io resources. **Permanent.** Audit log captures the full config (incl. encrypted env blob) on delete for reconstruction. Dashboard adds a type-to-confirm gate; the CLI does not — guard scripted deletes carefully.
 
 ### Secrets — `npx @insforge/cli secrets`
 - `npx @insforge/cli secrets list [--all]` — list secrets (values hidden; `--all` includes deleted)
@@ -137,10 +176,40 @@ If no project linked: `npx @insforge/cli create` (new) or `npx @insforge/cli lin
 ### Schedules — `npx @insforge/cli schedules`
 - `npx @insforge/cli schedules list` — list all scheduled tasks (shows ID, name, cron, URL, method, active, next run)
 - `npx @insforge/cli schedules get <id>` — get schedule details
-- `npx @insforge/cli schedules create --name --cron --url --method [--headers <json>] [--body <json>]` — create a cron job (5-field cron format only)
+- `npx @insforge/cli schedules create --name --cron --url --method [--headers <json>] [--body <json>]` — create a cron job. `--cron` accepts either 5-field cron (`*/5 * * * *`) or pg_cron interval syntax for sub-minute cadence (`30 seconds`)
 - `npx @insforge/cli schedules update <id> [--name] [--cron] [--url] [--method] [--headers] [--body] [--active]` — update schedule
 - `npx @insforge/cli schedules delete <id>` — delete schedule (with confirmation)
 - `npx @insforge/cli schedules logs <id> [--limit] [--offset]` — view execution logs
+
+### Branching — `npx @insforge/cli branch`
+
+Test risky schema, RLS, auth, or function changes in an isolated branch project before applying them to prod. A branch shares the parent's `JWT_SECRET` (so the same users authenticate) but gets a fresh EC2 + database + `API_KEY` / `ANON_KEY`. See [`references/branch.md`](references/branch.md) for the decision guide and lifecycle command details.
+
+> ⚠️ **Backend version requirement.** Branching is still in development and only available on InsForge backend **2.1.0 or later**. On older backends, `npx @insforge/cli branch` commands will fail. If you hit an error, contact the InsForge team.
+
+| Command | Description |
+|---------|-------------|
+| `npx @insforge/cli branch create <name> [--mode full\|schema-only] [--no-switch]` | Create a branch from the linked project. Auto-switches the directory's context to the new branch by default. |
+| `npx @insforge/cli branch list` | List active branches of the parent project (or the parent of the currently-switched-to branch). |
+| `npx @insforge/cli branch switch <name>` / `--parent` | Repoint `.insforge/project.json` at the branch (or back at parent). |
+| `npx @insforge/cli branch merge <name> [--dry-run] [--save-sql <path>] [-y]` | Compute (and optionally apply) the 3-way merge to parent. Conflict path exits with code 2. See [branch-merge](references/branch-merge.md). |
+| `npx @insforge/cli branch reset <name> [-y]` | Wipe all changes on the branch and restore its database to T0 (parent's snapshot at branch creation). Same EC2 / `appkey` / `API_KEY` — only DB content rewinds. Works from `ready` **or** `merged`. See [branch-reset](references/branch-reset.md). |
+| `npx @insforge/cli branch delete <name> [-y]` | Delete a branch and reclaim its EC2. Auto-switches back to parent if currently on the deleted branch. |
+
+**Typical flow:**
+
+```bash
+npx @insforge/cli branch create feat-rls --mode schema-only
+# context now points at the branch — re-source .env if your dev server caches it
+# ... apply your schema / RLS / auth changes via db migrations / SQL ...
+npx @insforge/cli branch merge feat-rls --dry-run --save-sql /tmp/diff.sql
+# review /tmp/diff.sql; on conflict CLI exits 2
+npx @insforge/cli branch merge feat-rls
+# parent now has the changes — redeploy functions / website / compute as needed
+npx @insforge/cli branch delete feat-rls
+```
+
+> **Got into a bad state on the branch?** `npx @insforge/cli branch reset <name>` rewinds the branch's database back to T0 (the parent snapshot at branch creation) without touching the EC2 or API keys — cheaper than delete + recreate and the SDK's `INSFORGE_URL` / `ANON_KEY` stay valid. Works from both `ready` and `merged` (a merged branch reset re-opens the same slot for another round of changes).
 
 ### Diagnostics — `npx @insforge/cli diagnose`
 
@@ -193,11 +262,13 @@ Run with no subcommand for a full health report across all checks.
 
 **The live database schema is the source of truth**: before writing a migration, and again if a migration fails, inspect the current database state first (`db tables / indexes / policies / triggers / functions`, plus `db migrations list`) and then adjust the migration statements to match reality. Do not assume local files are still current.
 
-**Compute deploy requires flyctl**: The `compute deploy` command shells out to `flyctl deploy --remote-only`. Install flyctl first (`brew install flyctl`) and set `FLY_API_TOKEN`. The `compute create` command does NOT require flyctl — it uses the Fly Machines API directly via the backend.
+**Compute deploy has two modes.** `compute deploy [dir]` shells out to `flyctl deploy --remote-only --build-only` against your source dir using a short-lived per-app token the cloud mints for that one deploy — **requires `flyctl` on PATH** but **no local Docker daemon** (the build runs remotely on Fly's builder). The token is attenuated to one app + builder/wg with `else: deny` so it cannot reach any other app or org-level endpoint, and it auto-expires after ~20 min. `compute deploy --image <url>` deploys a pre-built image from any registry — **nothing needed locally**, best for CI or off-the-shelf images like `nginx:alpine`. Don't use `flyctl` outside this CLI flow with your own credentials — the Fly account is InsForge's, you'd 401.
 
 **Compute endpoints use .fly.dev**: Services get a public URL at `https://{name}-{projectId}.fly.dev`. Custom domains require DNS configuration.
 
-**Schedules use 5-field cron only**: `minute hour day month day-of-week`. 6-field (with seconds) is NOT supported. Headers can reference secrets with `${{secrets.KEY_NAME}}`.
+**Schedules accept two cron formats**: 5-field cron (`minute hour day month day-of-week`, e.g. `*/5 * * * *`) **or** pg_cron interval syntax for sub-minute cadence (e.g. `30 seconds`). 6-field cron with seconds (Quartz/Spring's `*/2 * * * * *`) is **not** supported — use the interval form for sub-minute work. Headers can reference secrets with `${{secrets.KEY_NAME}}`.
+
+**Payments use Stripe as source of truth**: use `payments config set` for Stripe keys, `payments sync` before relying on existing catalog data, and create a new Stripe price instead of editing amount/currency. Runtime checkout and customer portal integration belongs in the `insforge` SDK skill.
 
 ---
 
@@ -252,7 +323,7 @@ npx @insforge/cli functions invoke my-handler --data '{"action": "test"}'
 
 ### Deploy frontend
 
-**Always verify the local build succeeds before deploying.** Local builds are faster to debug and don't waste server resources.
+**Always verify the local build succeeds before deploying.** Local builds are faster to debug and don't waste server resources. After the build passes, deploy the project source directory (usually `.`), not `dist/` or other generated build output.
 
 **Environment variables are required.** Frontend apps need env vars (API URL, anon key) to connect to InsForge at runtime. Deploying without them produces a broken app. Before deploying, you must ensure env vars are set using one of these two approaches:
 
@@ -266,14 +337,14 @@ npx @insforge/cli deployments env list
 npx @insforge/cli deployments env set VITE_INSFORGE_URL https://my-app.us-east.insforge.app
 npx @insforge/cli deployments env set VITE_INSFORGE_ANON_KEY ik_xxx
 
-# Deploy — persistent env vars are applied automatically
-npx @insforge/cli deployments deploy ./dist
+# Deploy the project source — persistent env vars are applied automatically
+npx @insforge/cli deployments deploy .
 ```
 
 **Option B — Inline `--env` flag:** Pass env vars as JSON directly on the deploy command. Useful for one-off deploys or overriding persistent vars.
 
 ```bash
-npx @insforge/cli deployments deploy ./dist --env '{"VITE_INSFORGE_URL": "https://my-app.us-east.insforge.app", "VITE_INSFORGE_ANON_KEY": "ik_xxx"}'
+npx @insforge/cli deployments deploy . --env '{"VITE_INSFORGE_URL": "https://my-app.us-east.insforge.app", "VITE_INSFORGE_ANON_KEY": "ik_xxx"}'
 ```
 
 **Full workflow:**
@@ -287,8 +358,8 @@ npx @insforge/cli deployments env list
 npx @insforge/cli deployments env set VITE_INSFORGE_URL https://my-app.us-east.insforge.app
 npx @insforge/cli deployments env set VITE_INSFORGE_ANON_KEY ik_xxx
 
-# 3. Deploy
-npx @insforge/cli deployments deploy ./dist
+# 3. Deploy the project source directory
+npx @insforge/cli deployments deploy .
 ```
 
 **Environment variable prefix by framework:**
@@ -305,33 +376,51 @@ npx @insforge/cli deployments deploy ./dist
 - [ ] `npm run build` succeeds locally
 - [ ] Env vars are set — run `deployments env list` to verify, or pass `--env` on the deploy command
 - [ ] All env vars use the correct framework prefix
+- [ ] Deploy the project source directory (usually `.`), not `dist/`, `build/`, or `.next/`
 - [ ] Edge function directories excluded from frontend build (if applicable)
-- [ ] Never include `node_modules`, `.git`, `.env`, `.insforge`, or build output in the zip
-- [ ] Build output directory matches framework's expected output (`dist/`, `build/`, `.next/`, etc.)
+- [ ] Never include `node_modules`, `.git`, `.env`, or `.insforge` in the upload
+- [ ] Framework build output is configured correctly (`dist/`, `build/`, `.next/`, etc.)
 
 ### Deploy a Docker container (compute service)
 
-Two paths: pre-built image or build from Dockerfile.
+Two modes — pick by what you have. Both deploy to the same Fly.io infrastructure.
 
-**Pre-built image (e.g. nginx, Redis, custom registry):**
+**Source mode (you have a Dockerfile; needs `flyctl` on PATH but NO local Docker daemon):**
 ```bash
-npx @insforge/cli compute create --name my-api --image nginx:alpine --port 80 --region iad
-npx @insforge/cli compute list
-# Service is running with a public https://{name}-{project}.fly.dev endpoint
+# Install flyctl once: curl -L https://fly.io/install.sh | sh
+
+# Project layout: Dockerfile + your app code
+$ ls
+Dockerfile  app.py  requirements.txt
+
+# One command:
+npx @insforge/cli compute deploy . --name my-api --port 8000
+# CLI mints a per-app, attenuated Fly deploy token from InsForge cloud
+# (~20 min TTL, scoped to one app, else: deny blocks org-wide reads), then
+# shells out to `flyctl deploy --remote-only --build-only` so the build runs
+# on Fly's remote builder and is pushed to registry.fly.io. Cloud launches
+# the machine and returns the URL. NO local Docker daemon needed.
 ```
 
-**Build from Dockerfile:**
+**Off-the-shelf image (no Docker required):**
 ```bash
-# Requires: flyctl installed + FLY_API_TOKEN set
-npx @insforge/cli compute deploy ./my-app --name my-api --port 8000
-# Builds remotely on Fly, deploys the image, syncs state back to InsForge
+npx @insforge/cli compute deploy --image nginx:alpine --name my-api --port 80 --region iad
+npx @insforge/cli compute list
+# Service is running with a public https://{name}-{project}.fly.dev endpoint
+# No flyctl, no FLY_API_TOKEN, no local Docker required.
+```
+
+**Pre-built image you pushed yourself (CI/CD, custom registry — no Docker required locally):**
+```bash
+# Built + pushed elsewhere (GitHub Actions, your CI, etc.)
+npx @insforge/cli compute deploy --image ghcr.io/you/app:v1 --name my-api --port 8000
 ```
 
 **Lifecycle management:**
 ```bash
 npx @insforge/cli compute stop <id>       # stop the machine
 npx @insforge/cli compute start <id>      # restart it
-npx @insforge/cli compute logs <id>       # check machine events
+npx @insforge/cli compute events <id>     # machine lifecycle events
 npx @insforge/cli compute delete <id>     # destroy everything
 ```
 
@@ -339,7 +428,7 @@ npx @insforge/cli compute delete <id>     # destroy everything
 **Memory options:** 256, 512 (default), 1024, 2048, 4096, 8192 MB
 **Regions:** `iad` (default), `sin`, `lax`, `lhr`, `nrt`, `ams`, `syd`
 
-> The `deploy` command requires `flyctl` CLI and `FLY_API_TOKEN` env var. It backs up any existing `fly.toml`, generates one for the deploy, then restores the original.
+> **Source mode** requires `flyctl` on PATH (no Docker). The CLI never asks the user for `FLY_API_TOKEN` — the cloud mints a short-lived, app-scoped token per deploy (~20 min, `else: deny`) and passes it through env to the flyctl subprocess. Tokens cannot deploy or read any other app, even within InsForge's Fly org. **Image mode** (the examples above) needs neither flyctl nor a token.
 
 ### Backup and restore database
 
@@ -351,7 +440,7 @@ npx @insforge/cli db import backup.sql
 ### Schedule a cron job
 
 ```bash
-# Create a schedule that calls a function every 5 minutes
+# Wall-clock cadence — every 5 minutes (5-field cron)
 npx @insforge/cli schedules create \
   --name "Cleanup Expired" \
   --cron "*/5 * * * *" \
@@ -359,13 +448,22 @@ npx @insforge/cli schedules create \
   --method POST \
   --headers '{"Authorization": "Bearer ${{secrets.API_TOKEN}}"}'
 
+# Sub-minute cadence — every 30 seconds (pg_cron interval syntax)
+npx @insforge/cli schedules create \
+  --name "Health Probe" \
+  --cron "30 seconds" \
+  --url "https://my-app.us-east.insforge.app/functions/probe" \
+  --method GET
+
 # Check execution history
 npx @insforge/cli schedules logs <id>
 ```
 
 #### Cron Expression Format
 
-InsForge uses **5-field cron expressions** (pg_cron format). 6-field expressions with seconds are NOT supported.
+InsForge accepts **two cron formats**: standard 5-field cron expressions, **or** pg_cron interval syntax for sub-minute cadence. 6-field cron expressions with seconds (Quartz/Spring style) are NOT supported — use the interval form below for sub-minute work.
+
+**5-field cron format:**
 
 ```
 ┌─────────────── minute (0-59)
@@ -387,6 +485,12 @@ InsForge uses **5-field cron expressions** (pg_cron format). 6-field expressions
 | `0 0 1 * *` | First day of every month at midnight |
 | `30 14 * * 1-5` | Weekdays at 2:30 PM |
 
+**Interval syntax (for sub-minute cadence):**
+
+Use `<positive integer> seconds` (e.g. `30 seconds`) — the only thing 5-field cron can't express.
+
+> **When to pick which:** use 5-field cron for "wall-clock" cadence (every Monday at 9 AM, daily midnight, every 5 minutes on the dot). Use interval syntax when you need sub-minute cadence or simple "every N seconds" semantics. At very high cadence (e.g. `1 second`), watch `schedules.job_logs` row counts — every fire writes a log row.
+
 #### Secret References in Headers
 
 Headers can reference secrets stored in InsForge using the syntax `${{secrets.KEY_NAME}}`.
@@ -404,9 +508,10 @@ Secrets are resolved at schedule creation/update time. If a referenced secret do
 
 #### Best Practices
 
-1. **Use 5-field cron expressions only**
-   - pg_cron does not support seconds (6-field format)
-   - Example: `*/5 * * * *` for every 5 minutes
+1. **Pick the right cron format for the cadence**
+   - Wall-clock cadence (daily/hourly/weekly) → 5-field cron (`*/5 * * * *`, `0 9 * * 1-5`)
+   - Sub-minute cadence → pg_cron interval form (e.g. `30 seconds`)
+   - 6-field cron with seconds (`*/2 * * * * *`) is **not** supported — use the interval form
 
 2. **Store sensitive values as secrets**
    - Use `${{secrets.KEY_NAME}}` in headers for API keys and tokens
@@ -424,7 +529,7 @@ Secrets are resolved at schedule creation/update time. If a referenced secret do
 
 | Mistake | Solution |
 |---------|----------|
-| Using 6-field cron (with seconds) | Use 5-field format only: `minute hour day month day-of-week` |
+| Using 6-field cron (e.g. `*/2 * * * * *`) | Not supported — use pg_cron interval form (`2 seconds`) for sub-minute, or 5-field cron for everything else |
 | Referencing non-existent secret | Create the secret first via secrets API |
 | Targeting non-existent function | Verify function exists and is `active` before scheduling |
 | Schedule not running | Check `isActive` is `true` and cron expression is valid |
@@ -483,8 +588,9 @@ npx @insforge/cli logs postgrest.logs --limit 50
 | General health / performance | `diagnose` (full report) or `diagnose metrics` |
 | Database bloat / slow queries | `diagnose db` |
 | Security / config issues | `diagnose advisor --category security` |
-| Compute service not starting | `compute logs <id>`, check Fly machine events |
-| Compute deploy failed | Check `FLY_API_TOKEN` is set, `flyctl` installed |
+| Compute service not starting | `compute events <id>` (machine lifecycle events) |
+| Compute source-mode deploy failed | Verify `flyctl` is on PATH (`flyctl version`); the per-app deploy token has a 20-min TTL — re-run if expired. Use `--image <url>` with a pre-built image to skip flyctl entirely. |
+| Compute image-mode deploy failed | Confirm the image is publicly pullable (private registries need per-project credential setup) |
 
 ### Non-interactive CI/CD
 
@@ -510,7 +616,7 @@ After `create` or `link`, `.insforge/project.json` is created:
 }
 ```
 
-`oss_host` is the base URL for all SDK and API operations. `api_key` is the admin key for backend API calls.
+`oss_host` is the base URL for all SDK and API operations. `api_key` is the full-access admin key for backend API calls, equivalent to a service role key on other platforms.
 
 > **Never commit this file to version control or share it publicly**.
 > Do not edit this file manually. Use `npx @insforge/cli link` to switch projects.
