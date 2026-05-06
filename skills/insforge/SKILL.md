@@ -1,7 +1,7 @@
 ---
 name: insforge
 description: >-
-  Use this skill when writing app code with InsForge or @insforge/sdk: database CRUD, auth, storage uploads/storage RLS, functions, AI, realtime, emails, Stripe checkout, subscriptions, or customer portal flows. Trigger on requests like add auth, fetch data, upload files, make a bucket public, add checkout, sell subscriptions, or send email. For infrastructure, SQL migrations, CLI commands, or Stripe key/catalog setup, use insforge-cli instead.
+  Use this skill when writing app code with InsForge or @insforge/sdk: database CRUD, auth, storage uploads/storage RLS, functions, AI, realtime, emails, Stripe checkout, subscriptions, customer portal flows, or pointing S3-compatible tooling (aws CLI, AWS SDKs, rclone, Terraform, boto3) at InsForge Storage. Trigger on requests like add auth, fetch data, upload files, make a bucket public, add checkout, sell subscriptions, or send email. For infrastructure, SQL migrations, CLI commands, or Stripe key/catalog setup, use insforge-cli instead.
 license: MIT
 metadata:
   author: insforge
@@ -98,7 +98,7 @@ const insforge = createClient({
 |--------|---------|
 | **Database** | CRUD operations, filters, pagination, RPC calls |
 | **Auth** | Sign up/in, OAuth, sessions, profiles, password reset |
-| **Storage** | Upload, download, delete files; write RLS policies for buckets |
+| **Storage** | Upload, download, delete files; S3-compatible gateway for CI / backup tooling; write RLS policies for buckets |
 | **Functions** | Invoke edge functions |
 | **AI** | Chat completions, image generation, embeddings |
 | **Email** | Send custom transactional HTML emails (welcome, newsletter, notifications) |
@@ -110,6 +110,7 @@ const insforge = createClient({
 | Guide | When to Use |
 |-------|-------------|
 | [database/postgres-rls.md](database/postgres-rls.md) | Writing or reviewing RLS policies — covers infinite recursion prevention, `SECURITY DEFINER` patterns, performance tips, and common InsForge RLS patterns |
+| [storage/s3-gateway.md](storage/s3-gateway.md) | Fallback path when the consumer is existing S3 tooling (aws CLI, AWS SDKs, rclone, Terraform, boto3) and adopting `@insforge/sdk` is impractical — covers endpoint/region setup, access-key management, path-style addressing, and supported vs. not-supported S3 operations. **Requires InsForge 2.0.9+.** **Prefer the SDK** ([storage/sdk-integration.md](storage/sdk-integration.md)) for app code |
 | [storage/postgres-rls.md](storage/postgres-rls.md) | Writing RLS policies for `storage.objects` — owner-only, public-read, path-scoped, team-shared, and the `NULL uploaded_by` caveat for mixed REST + S3 buckets |
 | [database/pgvector.md](database/pgvector.md) | Building semantic search, recommendations, or RAG — covers the `vector` extension, schema/dimensions, distance operators, HNSW/IVFFlat indexes, and RPC similarity search |
 | [ai/embeddings-and-rag.md](ai/embeddings-and-rag.md) | Generating embeddings through the InsForge AI gateway, storing them in pgvector, and wiring up a basic RAG pipeline with chat completions |
