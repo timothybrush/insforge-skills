@@ -15,7 +15,7 @@ InsForge Payments uses the developer's own Stripe account. There are two indepen
 - `test` uses the Stripe test secret key.
 - `live` uses the Stripe live secret key.
 
-Stripe is the source of truth. Product and price mutations go to Stripe first, then InsForge mirrors the result locally. Sync pulls Stripe products, prices, and subscriptions into the InsForge payments schema.
+Stripe is the source of truth. Product and price mutations go to Stripe first, then InsForge mirrors the result locally. Sync pulls Stripe products, prices, customers, and subscriptions into the InsForge payments schema.
 
 ## Initial Setup
 
@@ -47,7 +47,7 @@ npx @insforge/cli payments sync --environment test
 npx @insforge/cli payments catalog --environment test
 ```
 
-Manual sync does not configure webhooks. It only syncs products, prices, and subscriptions from Stripe to InsForge.
+Manual sync does not configure webhooks. It only syncs products, prices, customers, and subscriptions from Stripe to InsForge.
 
 ## Manage Products
 
@@ -192,6 +192,7 @@ If enabling RLS on `payments.checkout_sessions` and the app still needs anonymou
 After keys and catalog are ready, use the SDK from app code:
 
 - [sdk-integration.md](sdk-integration.md) for checkout and customer portal flows.
+- `npx @insforge/cli payments customers --environment test` for admin debugging.
 - `npx @insforge/cli payments subscriptions --environment test` for admin debugging.
 - `npx @insforge/cli payments history --environment test` for admin debugging.
 

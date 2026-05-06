@@ -2,7 +2,7 @@
 
 Manage the Stripe payments foundation for a linked InsForge project.
 
-Use this command group for infrastructure and agent/admin workflows: Stripe key configuration, unified sync, webhook setup, catalog inspection, product CRUD, price CRUD, subscription reads, and payment history reads. For frontend checkout and customer portal code, use the `insforge` SDK skill and `@insforge/sdk`.
+Use this command group for infrastructure and agent/admin workflows: Stripe key configuration, unified sync, webhook setup, catalog inspection, customer reads, product CRUD, price CRUD, subscription reads, and payment history reads. For frontend checkout and customer portal code, use the `insforge` SDK skill and `@insforge/sdk`.
 
 ## Availability
 
@@ -54,17 +54,25 @@ npx @insforge/cli payments sync --environment test
 npx @insforge/cli payments sync --environment live --json
 ```
 
-Sync pulls products, prices, and subscriptions from Stripe into InsForge. Unconfigured environments are skipped. Sync does not create or repair webhook endpoints.
+Sync pulls products, prices, customers, and subscriptions from Stripe into InsForge. Unconfigured environments are skipped. Sync does not create or repair webhook endpoints.
 
 ## Catalog
 
 ```bash
-npx @insforge/cli payments catalog
 npx @insforge/cli payments catalog --environment test
 npx @insforge/cli payments catalog --environment test --json
 ```
 
-Use catalog to inspect mirrored products and prices together.
+Use catalog to inspect mirrored products and prices together for a single environment.
+
+## Customers
+
+```bash
+npx @insforge/cli payments customers --environment test
+npx @insforge/cli payments customers --environment test --limit 20 --json
+```
+
+Use customers for admin/debug reads over mirrored Stripe customer state.
 
 ## Products
 

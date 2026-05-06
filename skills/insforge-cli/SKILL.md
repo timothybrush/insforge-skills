@@ -109,9 +109,10 @@ If no project linked: `npx @insforge/cli create` (new) or `npx @insforge/cli lin
 ### Payments — `npx @insforge/cli payments`
 - `npx @insforge/cli payments status` — show Stripe key, account, sync, and webhook status
 - `npx @insforge/cli payments config / config set / config remove` — manage Stripe test/live secret keys. See [references/payments.md](references/payments.md)
-- `npx @insforge/cli payments sync [--environment test|live|all]` — sync products, prices, and subscriptions from Stripe
+- `npx @insforge/cli payments sync [--environment test|live|all]` — sync products, prices, customers, and subscriptions from Stripe
 - `npx @insforge/cli payments webhooks configure <environment>` — create or recreate the managed Stripe webhook endpoint
-- `npx @insforge/cli payments catalog [--environment]` — inspect mirrored products and prices together
+- `npx @insforge/cli payments catalog --environment <env>` — inspect mirrored products and prices together
+- `npx @insforge/cli payments customers --environment <env>` — admin/debug customer reads
 - `npx @insforge/cli payments products list/get/create/update/delete` — manage Stripe products
 - `npx @insforge/cli payments prices list/get/create/update/archive` — manage Stripe prices
 - `npx @insforge/cli payments subscriptions --environment <env>` — admin/debug subscription reads

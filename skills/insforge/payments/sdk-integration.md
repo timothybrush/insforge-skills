@@ -42,8 +42,7 @@ Use `mode: 'payment'` for one-time purchases. Anonymous checkout is allowed, but
 If the payment should fulfill an app record such as an order, credit grant, download, or booking, create that app record first and pass its ID in checkout metadata. Do not mark it paid from the success URL.
 
 ```typescript
-const { data, error } = await insforge.payments.createCheckoutSession({
-  environment: 'test',
+const { data, error } = await insforge.payments.createCheckoutSession('test', {
   mode: 'payment',
   lineItems: [{ stripePriceId: 'price_123', quantity: 1 }],
   successUrl: `${window.location.origin}/checkout/success`,
@@ -83,8 +82,7 @@ The backend fulfillment migration should be implemented separately before relyin
 Use `mode: 'subscription'` for recurring prices. Subscription checkout requires a `subject` because ongoing access belongs to an app-specific billing owner.
 
 ```typescript
-const { data, error } = await insforge.payments.createCheckoutSession({
-  environment: 'test',
+const { data, error } = await insforge.payments.createCheckoutSession('test', {
   mode: 'subscription',
   lineItems: [{ stripePriceId: 'price_monthly_123', quantity: 1 }],
   successUrl: `${window.location.origin}/billing/success`,
@@ -105,8 +103,7 @@ if (data?.checkoutSession.url) window.location.assign(data.checkoutSession.url)
 Use Stripe Billing Portal when a customer needs to manage an existing subscription, payment method, invoice, or cancellation.
 
 ```typescript
-const { data, error } = await insforge.payments.createCustomerPortalSession({
-  environment: 'test',
+const { data, error } = await insforge.payments.createCustomerPortalSession('test', {
   subject: { type: 'team', id: teamId },
   returnUrl: `${window.location.origin}/billing`
 })
@@ -123,8 +120,8 @@ Portal creation requires an existing Stripe customer mapping for the subject. Us
 
 The SDK currently exposes creation flows only:
 
-- `insforge.payments.createCheckoutSession(...)`
-- `insforge.payments.createCustomerPortalSession(...)`
+- `insforge.payments.createCheckoutSession(environment, body)`
+- `insforge.payments.createCustomerPortalSession(environment, body)`
 
 Do not assume frontend users can read `payments.subscriptions` or `payments.payment_history` directly. Those are admin/backend projections. If the app needs user-facing entitlement or billing status, create an app-specific read model such as:
 
