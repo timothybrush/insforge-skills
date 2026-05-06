@@ -171,16 +171,6 @@ WITH CHECK (
   AND subject_id IS NULL
 );
 
-CREATE POLICY "authenticated users read subjectless payment checkout sessions"
-ON payments.checkout_sessions
-FOR SELECT
-TO authenticated
-USING (
-  mode = 'payment'
-  AND subject_type IS NULL
-  AND subject_id IS NULL
-);
-
 CREATE POLICY "anon users create subjectless payment checkout sessions"
 ON payments.checkout_sessions
 FOR INSERT
@@ -190,19 +180,13 @@ WITH CHECK (
   AND subject_type IS NULL
   AND subject_id IS NULL
 );
-
-CREATE POLICY "anon users read subjectless payment checkout sessions"
-ON payments.checkout_sessions
-FOR SELECT
-TO anon
-USING (
-  mode = 'payment'
-  AND subject_type IS NULL
-  AND subject_id IS NULL
-);
 ```
 
-Keep matching `INSERT` and `SELECT` policies for checkout sessions. Idempotent checkout creation may need to read an existing session row as part of the same flow.
+Subject-less payment rows do not have a built-in ownership field, so there is no single safe generic `SELECT` policy example for them.
+
+The `INSERT` policies above are enough to create new checkout sessions. If your app also needs to read `payments.checkout_sessions` for subject-less payment flows, for example to support idempotent retries or another app-specific read path, add `SELECT` policies based on your own business logic and ownership model.
+
+Do not copy a broad `SELECT` policy for all subject-less payment rows. Scope reads to the buyer or checkout attempt using fields and rules defined by your app.
 
 Adjust table names, ID casts, and ownership checks to the app schema. If your app passes a subject for one-time payments too, replace the subject-less `mode = 'payment'` policies with policies that match that subject model.
 

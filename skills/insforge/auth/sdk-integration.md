@@ -235,6 +235,7 @@ If a mount-time effect branches on the current user, guard the user-dependent wo
 ```tsx
 const [shouldRunAction, setShouldRunAction] = useState(false)
 const handled = useRef(false)
+const userId = user?.id ?? null
 
 useEffect(() => {
   const handleStatusChanged = ({ id, status }) => {
@@ -251,12 +252,12 @@ useEffect(() => {
   if (loading || !shouldRunAction || handled.current) return
 
   async function runUserDependentAction() {
-    await performUserDependentAction({ user })
+    await performUserDependentAction({ userId })
     handled.current = true
   }
 
   void runUserDependentAction()
-}, [loading, shouldRunAction, user?.id])
+}, [loading, shouldRunAction, userId])
 ```
 
 Webhook-backed Realtime flows can complete before the cold-load auth refresh finishes, especially after Stripe Checkout, Customer Portal, OAuth, password-reset, or email-verification redirects. If you use a `cleared.current` or other "first event wins" guard, do not flip it until `loading === false` and the user-dependent work has actually succeeded.
