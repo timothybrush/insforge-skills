@@ -115,6 +115,10 @@ const insforge = createClient({
 | [ai/embeddings-and-rag.md](ai/embeddings-and-rag.md) | Generating embeddings through the InsForge AI gateway, storing them in pgvector, and wiring up a basic RAG pipeline with chat completions |
 | [payments/backend-configuration.md](payments/backend-configuration.md) | Configuring Stripe keys, syncing catalog, creating products/prices, webhooks, and portal RLS before app integration |
 
+### Building Checkout for a New App
+
+Before integrating payments, make sure a Stripe key is configured. Run `npx @insforge/cli payments status`. If it shows `unconfigured`, ask the user for the Stripe key first. See [payments/backend-configuration.md](payments/backend-configuration.md).
+
 ### Real-time Configuration
 
 For real-time channels and database triggers, use SQL migrations or database admin tooling to configure channels, triggers, and policies. The real-time SDK is for frontend event handling and messaging, not backend configuration.

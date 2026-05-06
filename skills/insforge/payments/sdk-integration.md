@@ -24,6 +24,8 @@ npx @insforge/cli payments catalog --environment test
 
 If the CLI says `Payments are not available on this backend`, stop and ask the developer/admin to enable payments or upgrade the self-hosted backend. Do not implement a direct Stripe secret-key flow in the frontend. If keys, products, or prices are missing, configure them first. See [backend-configuration.md](backend-configuration.md).
 
+Before integrating payments, make sure a Stripe key is configured. If `payments status` shows `unconfigured`, ask the user for the Stripe key first. See [backend-configuration.md](backend-configuration.md).
+
 ## Authorization Prerequisite
 
 Before adding subscription checkout or customer portal UI, implement RLS policies for the app's billing subject model:
@@ -37,7 +39,9 @@ Do not expose UI that accepts arbitrary `subject.type` or `subject.id` until the
 
 ## One-Time Checkout
 
-Use `mode: 'payment'` for one-time purchases. Anonymous checkout is allowed, but include `customerEmail` when available.
+Use `mode: 'payment'` for one-time purchases. For one-time payments, `subject` is optional. Anonymous checkout is allowed, but include `customerEmail` when available.
+
+If you enable RLS on `payments.checkout_sessions`, subject-less `mode: 'payment'` rows need their own narrow policies. See the combined example in [backend-configuration.md#checkout-and-portal-authorization](backend-configuration.md#checkout-and-portal-authorization).
 
 If the payment should fulfill an app record such as an order, credit grant, download, or booking, create that app record first and pass its ID in checkout metadata. Do not mark it paid from the success URL.
 
@@ -61,6 +65,28 @@ if (data?.checkoutSession.url) {
 }
 ```
 
+### What `lineItems` Does Not Support
+
+The current request shape only accepts `lineItems: [{ stripePriceId, quantity }]`. It does not accept `priceData`, `discounts`, `coupons`, or `allowPromotionCodes`.
+
+For tiered pricing, create one Stripe Price per `(product x pricing tier)`, store each variant on the app's product row, and pick the right `stripePriceId` before checkout.
+
+```sql
+ALTER TABLE public.products
+  ADD COLUMN stripe_price_id TEXT,
+  ADD COLUMN stripe_member_price_id TEXT;
+```
+
+```typescript
+const lineItems = cart.items.map(({ product, quantity }) => ({
+  stripePriceId:
+    membership === 'member'
+      ? product.stripe_member_price_id
+      : product.stripe_price_id,
+  quantity,
+}))
+```
+
 ### One-Time Frontend Fulfillment Flow
 
 Stripe redirects are user navigation only. The success page can say "processing" and poll or subscribe to an app-owned table, but the durable fulfillment signal should come from InsForge's webhook-backed payment projection.
@@ -74,6 +100,8 @@ Frontend pattern:
 5. Optionally subscribe to the app-owned table with Realtime for immediate UI updates.
 
 Do not let users supply arbitrary `order_id` metadata. Create or select the pending order through app logic/RLS first, then pass that trusted row ID into Checkout.
+
+If the success page also runs user-dependent side effects, wait for auth loading to finish before choosing the signed-in vs guest branch. Webhook-backed Realtime updates can arrive before a cold-load auth refresh completes. See [../auth/sdk-integration.md#dont-fire-user-dependent-side-effects-during-auth-loading](../auth/sdk-integration.md#dont-fire-user-dependent-side-effects-during-auth-loading).
 
 The backend fulfillment migration should be implemented separately before relying on the success page. See [backend-configuration.md#fulfillment-business-logic](backend-configuration.md#fulfillment-business-logic) for the trigger/source-table guidance.
 

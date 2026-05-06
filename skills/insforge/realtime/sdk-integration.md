@@ -231,11 +231,16 @@ await insforge.realtime.publish(channel, 'viewed', {
    - Listen for `connect`, `disconnect`, and `connect_error` events
    - Presence is ephemeral and tracked in-memory on a single backend instance, so reconnect by subscribing again and rebuilding from the returned snapshot
 
-4. **Design for presence visibility rules**
+4. **Gate user-dependent side effects on auth hydration**
+   - Webhook-backed events can arrive before a cold-load `getCurrentUser()` refresh finishes
+   - If an event branches on the current user, wait for `authLoading === false` before running it or flipping a "first event wins" guard
+   - See [../auth/sdk-integration.md#dont-fire-user-dependent-side-effects-during-auth-loading](../auth/sdk-integration.md#dont-fire-user-dependent-side-effects-during-auth-loading)
+
+5. **Design for presence visibility rules**
    - Authenticated subscribers expose their user ID through `presenceId` to other channel members
    - Avoid presence-enabled channels when subscriber identity should stay opaque
 
-5. **Clean up subscriptions**
+6. **Clean up subscriptions**
    - Unsubscribe from channels when no longer needed
    - Disconnect when leaving the page/component
 
