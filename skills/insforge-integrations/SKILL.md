@@ -1,12 +1,9 @@
 ---
 name: insforge-integrations
 description: >-
-  Use this skill when integrating a third-party provider with InsForge —
-  either an auth provider (Clerk, Auth0, WorkOS, Kinde, Stytch, Better Auth)
-  for JWT-based RLS, or a payment facilitator (OKX x402) for onchain
-  pay-per-use billing. Covers provider-specific dashboard setup,
-  client/server code, database policies, and common gotchas for each
-  supported integration.
+  Use when wiring an external auth provider (Clerk, Auth0, WorkOS, Kinde,
+  Stytch, Better Auth) into InsForge for JWT-based RLS, or when adding the
+  OKX x402 payment facilitator for onchain pay-per-use billing.
 license: MIT
 metadata:
   author: insforge

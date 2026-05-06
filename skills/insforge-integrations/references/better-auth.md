@@ -56,7 +56,10 @@ import { Pool } from 'pg';
 
 // Fail at module-load if a required var is missing. Better than `!`
 // because the error names the missing var instead of crashing on a
-// downstream undefined.
+// downstream undefined. Used for server-side env vars throughout this
+// guide. Client-side `NEXT_PUBLIC_*` reads keep the `!` syntax — those
+// are inlined at build time, so a module-load check would just fire in
+// the browser at request time anyway.
 function requireEnv(name: string): string {
   const v = process.env[name];
   if (!v) throw new Error(`Missing required env var: ${name}`);
@@ -101,7 +104,9 @@ REVOKE ALL ON public."user", public.session, public.account, public.verification
 NOTIFY pgrst, 'reload schema';
 ```
 
-The `REVOKE` survives subsequent `auth migrate` runs (Postgres only re-grants on `CREATE TABLE`, not `ALTER TABLE`). Better Auth itself connects as the `postgres` superuser via the connection string and is unaffected. Including `project_admin` is safe — InsForge Studio inspects tables through the backend admin pool (which connects as `postgres`), not via the `project_admin` Postgres role, so the dashboard keeps working.
+The `REVOKE` survives subsequent `auth migrate` runs (Postgres only re-grants on `CREATE TABLE`, not `ALTER TABLE`). Including `project_admin` is safe — InsForge Studio inspects tables through the backend admin pool (which connects as `postgres`), not via the `project_admin` Postgres role, so the dashboard keeps working.
+
+> **`DATABASE_URL` must keep superuser-grade privileges.** Better Auth itself connects via this connection string to write to `user` / `session` / `account` / `verification`. Use `postgres` (or another fully-granted role) — NOT `authenticated`. After the REVOKE, `authenticated` can't INSERT into BA's tables, so a connection string scoped to that role silently breaks sign-up at first use. This is the second-most-common foot-gun after forgetting the REVOKE itself.
 
 > **Enabling plugins later?** Every Better Auth plugin that adds tables (`organization`, `twoFactor`, `apiKey`, `passkey`, …) creates them in `public` with the same default grants. Re-run an analogous `REVOKE` for the plugin's tables. The Organization plugin specifically is covered in the [Better Auth plugins](#better-auth-plugins-optional) section below.
 
@@ -141,7 +146,7 @@ export async function GET() {
       role: 'authenticated',
       aud: 'insforge-api',
     },
-    process.env.INSFORGE_JWT_SECRET!,
+    requireEnv('INSFORGE_JWT_SECRET'),
     { algorithm: 'HS256', expiresIn: '1h' },
   );
   // no-store: bridge tokens are short-lived and per-session — never cache.
@@ -260,7 +265,7 @@ export async function createInsForgeClient() {
       role: 'authenticated',
       aud: 'insforge-api',
     },
-    process.env.INSFORGE_JWT_SECRET!,
+    requireEnv('INSFORGE_JWT_SECRET'),
     { algorithm: 'HS256', expiresIn: '1h' },
   );
 
@@ -384,7 +389,7 @@ import { Pool } from 'pg';
 function insforgeServerClient() {
   const token = jwt.sign(
     { sub: 'better-auth-service', role: 'authenticated', aud: 'insforge-api' },
-    process.env.INSFORGE_JWT_SECRET!,
+    requireEnv('INSFORGE_JWT_SECRET'),
     { algorithm: 'HS256', expiresIn: '5m' },
   );
   const c = createClient({ baseUrl: process.env.NEXT_PUBLIC_INSFORGE_BASE_URL! });
@@ -393,9 +398,9 @@ function insforgeServerClient() {
 }
 
 export const auth = betterAuth({
-  database: new Pool({ connectionString: process.env.DATABASE_URL! }),
-  secret: process.env.BETTER_AUTH_SECRET!,
-  baseURL: process.env.BETTER_AUTH_URL!,
+  database: new Pool({ connectionString: requireEnv('DATABASE_URL') }),
+  secret: requireEnv('BETTER_AUTH_SECRET'),
+  baseURL: requireEnv('BETTER_AUTH_URL'),
 
   emailAndPassword: {
     enabled: true,
@@ -483,7 +488,7 @@ const token = jwt.sign(
     aud: 'insforge-api',
     org_id: session.session.activeOrganizationId ?? null,   // ← add
   },
-  process.env.INSFORGE_JWT_SECRET!,
+  requireEnv('INSFORGE_JWT_SECRET'),
   { algorithm: 'HS256', expiresIn: '1h' },
 );
 ```
@@ -561,7 +566,8 @@ const app = new Hono();
 // 1. Better Auth catch-all — equivalent of toNextJsHandler
 app.on(['POST', 'GET'], '/api/auth/*', (c) => auth.handler(c.req.raw));
 
-// 2. Bridge route — exact same JWT shape as the Next version
+// 2. Bridge route — exact same JWT shape as the Next version (sub/role/aud only,
+//    no PII; see lines 138–148 above for why).
 app.get('/api/insforge-token', async (c) => {
   const session = await auth.api.getSession({ headers: c.req.raw.headers });
   if (!session?.user) return c.json({ error: 'not signed in' }, 401);
@@ -570,12 +576,11 @@ app.get('/api/insforge-token', async (c) => {
       sub: session.user.id,
       role: 'authenticated',
       aud: 'insforge-api',
-      email: session.user.email,
     },
-    process.env.INSFORGE_JWT_SECRET!,
+    requireEnv('INSFORGE_JWT_SECRET'),
     { algorithm: 'HS256', expiresIn: '1h' },
   );
-  return c.json({ token });
+  return c.json({ token }, 200, { 'Cache-Control': 'no-store' });
 });
 
 export default { port: 3030, fetch: app.fetch };
