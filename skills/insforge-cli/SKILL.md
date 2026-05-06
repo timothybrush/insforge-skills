@@ -5,7 +5,7 @@ description: >-
 license: MIT
 metadata:
   author: insforge
-  version: "1.3.0"
+  version: "1.4.0"
   organization: InsForge
   date: May 2026
 ---
@@ -221,6 +221,11 @@ Run with no subcommand for a full health report across all checks.
 - `npx @insforge/cli diagnose advisor [--severity critical|warning|info] [--category security|performance|health] [--limit <n>]` — latest advisor scan results and issues. Default limit: 50
 - `npx @insforge/cli diagnose db [--check <checks>]` — database health checks. Checks: `connections`, `slow-queries`, `bloat`, `size`, `index-usage`, `locks`, `cache-hit` (default: `all`)
 - `npx @insforge/cli diagnose logs [--source <name>] [--limit <n>]` — aggregate error-level logs from all backend sources. Default limit: 100
+
+### Analytics Integration — `npx @insforge/cli posthog`
+- `npx @insforge/cli posthog setup` — one-shot connect-and-install: auto-provisions a PostHog account if needed, runs OAuth, detects the project framework (Next.js App/Pages Router, Vite + React, SvelteKit, Astro), installs `posthog-js`, renders the per-framework SDK init template, and writes env vars. See [references/posthog.md](references/posthog.md).
+
+> ⚠️ **Private beta.** PostHog integration is currently being rolled out to early-access partners. Templated install supports the most common stacks; other frameworks fall through to a manual instructions path.
 
 ### Logs — `npx @insforge/cli logs`
 - `npx @insforge/cli logs <source> [--limit <n>]` — fetch backend container logs (default: 20 entries)
