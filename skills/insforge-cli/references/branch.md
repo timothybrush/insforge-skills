@@ -42,7 +42,7 @@ Creates a branch from the linked parent and auto-switches the directory's contex
 After creation:
 
 1. **Re-source your dev server's `.env`** — `INSFORGE_URL` / `INSFORGE_ANON_KEY` change with the switch.
-2. **Redeploy code that lives outside the database.** `pg_dump` copies `functions.definitions` rows but not the Deno Subhosting bundles, Vercel frontends, or Fly.io compute services — the branch's runtime starts empty. Re-run `functions deploy <slug>`, `deployments deploy`, and `compute update` for anything you need on the branch. Symptom if you skip this: function invocations fail with `getaddrinfo ENOTFOUND deno` or `Deployment not found`.
+2. **Deploy code that lives outside the database.** `pg_dump` copies `functions.definitions` rows but not the Deno Subhosting bundles, Vercel frontends, or Fly.io compute services — the branch's runtime starts empty. Run `functions deploy <slug>`, `deployments deploy`, and `compute deploy` for anything you need on the branch (`compute deploy`, not `compute update` — there's no service id to update yet). Symptom if you skip this: function invocations fail with `getaddrinfo ENOTFOUND deno` or `Deployment not found`.
 
 ### `branch list`
 
@@ -63,7 +63,7 @@ Repoints `.insforge/project.json` at the branch (or back at the original parent)
 
 > **Critical:** the dev server's `.env` is **not** updated by `switch`. The SDK reads `INSFORGE_URL` / `INSFORGE_ANON_KEY` from `.env`, so without re-sourcing, the SDK silently keeps hitting the previous backend. This is the #1 source of "I switched but my changes aren't showing up."
 
-> **Also:** each backend has its own function / frontend / compute runtime. Switching points the SDK at a different EC2 whose Deno Subhosting, Vercel, and Fly.io state are independent. If you've never deployed your code on the target (e.g. first switch to a freshly-created branch), redeploy with `functions deploy`, `deployments deploy`, and `compute update` — otherwise calls land on an empty runtime and fail with `getaddrinfo ENOTFOUND deno` / `Deployment not found`.
+> **Also:** each backend has its own function / frontend / compute runtime. Switching points the SDK at a different EC2 whose Deno Subhosting, Vercel, and Fly.io state are independent. If you've never deployed your code on the target (e.g. first switch to a freshly-created branch), deploy it with `functions deploy`, `deployments deploy`, and `compute deploy` — otherwise calls land on an empty runtime and fail with `getaddrinfo ENOTFOUND deno` / `Deployment not found`.
 
 The first hop off the parent backs up `.insforge/project.json` to `.insforge/project.parent.json`. Subsequent branch ↔ branch switches don't touch the backup — `--parent` always returns to the original.
 
