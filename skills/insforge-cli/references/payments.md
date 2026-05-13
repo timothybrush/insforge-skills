@@ -146,6 +146,8 @@ Before exposing subscription checkout or Billing Portal UI, define RLS policies 
 - `payments.checkout_sessions` controls who can create and read Checkout Session attempts for a subject.
 - `payments.customer_portal_sessions` controls who can create and read Billing Portal Session attempts for a subject.
 
+Checkout creation needs an `INSERT` policy on `payments.checkout_sessions`. If the app sends checkout idempotency keys, add a matching `SELECT` policy too: the backend insert uses `ON CONFLICT (environment, idempotency_key) DO NOTHING`, and conflict retries read the existing checkout row under the caller context.
+
 If subscriptions bill teams, policies should check team membership. If subscriptions bill organizations, workspaces, groups, or users, policies should check that model instead. Do not let generated apps pass arbitrary subject IDs without matching policies.
 
 See the SDK skill guide `skills/insforge/payments/backend-configuration.md` for policy examples.
@@ -212,4 +214,5 @@ Example flow:
 | Trying to update price amount/currency | Create a new price and archive the old one |
 | Using CLI for runtime checkout | Use `insforge.payments.createCheckoutSession` in app code |
 | Shipping subscription UI before RLS | Add policies on `payments.checkout_sessions` and `payments.customer_portal_sessions` first |
+| Idempotent checkout retry blocked by RLS after adding `INSERT` | Add the matching `SELECT` policy for rows the caller may retry/read |
 | Marking app orders paid from success URL | Fulfill from webhook-backed `payments.payment_history` or `payments.subscriptions` |

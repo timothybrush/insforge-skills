@@ -303,7 +303,7 @@ All SDK methods return `{ data, error }`.
 - **Storage**: Save both `url` AND `key` to database for download/delete operations
 - **Functions invoke URL**: `/functions/{slug}` (without `/api` prefix)
 - **Payments**: Configure Stripe keys/catalog with `npx @insforge/cli payments ...` first; frontend code only creates Checkout/Portal sessions.
-- **Payment RLS**: Before subscription checkout or Billing Portal UI, add app-specific RLS on `payments.checkout_sessions` and `payments.customer_portal_sessions`.
+- **Payment RLS**: Before subscription checkout or Billing Portal UI, add app-specific RLS on `payments.checkout_sessions` and `payments.customer_portal_sessions`. Checkout creation needs `INSERT`; checkout requests with `idempotencyKey` also need matching `SELECT` on `payments.checkout_sessions`.
 - **Use Tailwind CSS v3.4** (do not upgrade to v4)
 - **Always local build before deploy**: Prevents wasted build resources and faster debugging
 - **Deprecated packages**: `@insforge/react`, `@insforge/nextjs`, and `@insforge/react-router` are **deprecated**. Do NOT install or use them. Use `@insforge/sdk` directly for all features including authentication.

@@ -113,32 +113,34 @@ Before exposing subscription checkout or customer subscription management UI, im
 - `payments.checkout_sessions` controls who can create and read Checkout Session attempts for a billing subject.
 - `payments.customer_portal_sessions` controls who can create and read Billing Portal Session attempts for a billing subject.
 
+Checkout creation inserts the local `payments.checkout_sessions` row under the caller's Postgres role and JWT context. The insert uses `ON CONFLICT (environment, idempotency_key) DO NOTHING` so retry-safe checkout can reuse `idempotencyKey`. When an app sends `idempotencyKey`, add a matching `SELECT` policy as well as `INSERT`: PostgreSQL needs read access to the conflict target columns, and if a conflict is found the backend runs a caller-context `SELECT` to read the matching row. If the row is hidden by RLS, checkout fails or the retry is treated as a conflicting/unusable idempotency key.
+
 This must be based on the app's business model. A subject can be a user, team, organization, workspace, tenant, group, or any other billing owner. InsForge cannot infer that automatically.
 
-For one-time checkout, `subject` is optional. Many apps omit it for guest or cart checkout and pass only `customerEmail`. If you enable RLS on `payments.checkout_sessions`, those `mode = 'payment'` rows need their own narrow policies instead of reusing subject-based subscription policies.
+For one-time checkout, `subject` is optional. Many apps omit it for guest or cart checkout and pass only `customerEmail`. If you enable RLS on `payments.checkout_sessions`, those `mode = 'payment'` rows need their own narrow `INSERT` policies instead of reusing subject-based subscription policies. Add matching `SELECT` policies when the app sends `idempotencyKey` or has any other user-facing read path for checkout attempts.
 
-Example for a mixed app where subscriptions belong to the signed-in user and one-time orders are allowed for both authenticated and anonymous shoppers:
+Example for a signed-in app where subscriptions and one-time checkout attempts belong to the authenticated user:
 
 ```sql
 ALTER TABLE payments.checkout_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payments.customer_portal_sessions ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "users create subscription checkout sessions"
+CREATE POLICY "users create their checkout sessions"
 ON payments.checkout_sessions
 FOR INSERT
 TO authenticated
 WITH CHECK (
-  mode = 'subscription'
+  mode IN ('subscription', 'payment')
   AND subject_type = 'user'
   AND subject_id = auth.uid()::text
 );
 
-CREATE POLICY "users read subscription checkout sessions"
+CREATE POLICY "users read their checkout sessions"
 ON payments.checkout_sessions
 FOR SELECT
 TO authenticated
 USING (
-  mode = 'subscription'
+  mode IN ('subscription', 'payment')
   AND subject_type = 'user'
   AND subject_id = auth.uid()::text
 );
@@ -160,31 +162,11 @@ USING (
   subject_type = 'user'
   AND subject_id = auth.uid()::text
 );
-
-CREATE POLICY "authenticated users create subjectless payment checkout sessions"
-ON payments.checkout_sessions
-FOR INSERT
-TO authenticated
-WITH CHECK (
-  mode = 'payment'
-  AND subject_type IS NULL
-  AND subject_id IS NULL
-);
-
-CREATE POLICY "anon users create subjectless payment checkout sessions"
-ON payments.checkout_sessions
-FOR INSERT
-TO anon
-WITH CHECK (
-  mode = 'payment'
-  AND subject_type IS NULL
-  AND subject_id IS NULL
-);
 ```
 
 Subject-less payment rows do not have a built-in ownership field, so there is no single safe generic `SELECT` policy example for them.
 
-The `INSERT` policies above are enough to create new checkout sessions. If your app also needs to read `payments.checkout_sessions` for subject-less payment flows, for example to support idempotent retries or another app-specific read path, add `SELECT` policies based on your own business logic and ownership model.
+If subject-less checkout uses idempotency keys, add a matching `SELECT` policy for those payment rows based on your own business logic and ownership model, for example a trusted order/cart record referenced in metadata, a subject you add to the request, or another app-specific proof that the caller owns the checkout attempt. If the app mints keys like `order:<uuid>`, include that shape in the `SELECT` predicate.
 
 Do not copy a broad `SELECT` policy for all subject-less payment rows. Scope reads to the buyer or checkout attempt using fields and rules defined by your app.
 
@@ -271,8 +253,9 @@ Keep triggers idempotent. Stripe can retry webhooks, and projection rows may be 
 3. **Sync before relying on Stripe IDs** when a developer has existing Stripe catalog objects.
 4. **Never expose Stripe secret keys** in app code or deployed frontend env vars.
 5. **Define payment-session RLS before subscription UI** on `payments.checkout_sessions` and `payments.customer_portal_sessions`.
-6. **Use app-specific tables for entitlements** if the user-facing UI needs billing status.
-7. **Use payment projections as trigger sources** for fulfillment, not as the user-facing read model.
+6. **Checkout idempotency needs SELECT** because `ON CONFLICT` checks the idempotency target and conflict retries read `payments.checkout_sessions` under the caller context.
+7. **Use app-specific tables for entitlements** if the user-facing UI needs billing status.
+8. **Use payment projections as trigger sources** for fulfillment, not as the user-facing read model.
 
 ## Common Mistakes
 
@@ -283,5 +266,6 @@ Keep triggers idempotent. Stripe can retry webhooks, and projection rows may be 
 | Editing prices for amount/currency | Create a new price and archive the old one |
 | Using live keys during development | Use `--environment test` until production is explicitly approved |
 | Adding subscription checkout or portal UI without RLS | Add policies on `payments.checkout_sessions` and `payments.customer_portal_sessions` for the app subject model |
+| Idempotent checkout retry fails despite an `INSERT` policy | Add the matching `SELECT` policy for rows the caller is allowed to retry/read |
 | Marking orders paid from the success URL | Add an idempotent trigger from `payments.payment_history` |
 | Exposing `payments.payment_history` directly to frontend users | Copy the needed state into app-owned tables with app RLS |

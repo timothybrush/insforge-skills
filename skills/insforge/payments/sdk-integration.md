@@ -33,6 +33,8 @@ Before adding subscription checkout or customer portal UI, implement RLS policie
 - `payments.checkout_sessions` controls who can create and read Checkout Session attempts for a subject.
 - `payments.customer_portal_sessions` controls who can create and read Billing Portal Session attempts for a subject.
 
+Checkout creation needs an `INSERT` policy. If the app sends checkout `idempotencyKey`, add a matching `SELECT` policy too: the backend insert uses `ON CONFLICT (environment, idempotency_key) DO NOTHING`, and conflict retries read `payments.checkout_sessions` under the caller context to find the existing attempt.
+
 For example, if subscriptions belong to teams, policies must prove the current user belongs to the team before allowing rows with `subject: { type: 'team', id: teamId }`. If subscriptions belong to organizations, workspaces, or users, write policies for that structure instead.
 
 Do not expose UI that accepts arbitrary `subject.type` or `subject.id` until these policies exist. See [backend-configuration.md](backend-configuration.md).
@@ -41,7 +43,7 @@ Do not expose UI that accepts arbitrary `subject.type` or `subject.id` until the
 
 Use `mode: 'payment'` for one-time purchases. For one-time payments, `subject` is optional. Anonymous checkout is allowed, but include `customerEmail` when available.
 
-If you enable RLS on `payments.checkout_sessions`, subject-less `mode: 'payment'` rows need their own narrow policies. See the combined example in [backend-configuration.md#checkout-and-portal-authorization](backend-configuration.md#checkout-and-portal-authorization).
+If the buyer is signed in, prefer passing a subject so checkout RLS can use the same ownership model as subscriptions. If you enable RLS on `payments.checkout_sessions`, subject-less `mode: 'payment'` rows need their own narrow `INSERT` policy, plus `SELECT` when the request sends `idempotencyKey` or user-facing read paths need to see the checkout attempt. See [backend-configuration.md#checkout-and-portal-authorization](backend-configuration.md#checkout-and-portal-authorization).
 
 If the payment should fulfill an app record such as an order, credit grant, download, or booking, create that app record first and pass its ID in checkout metadata. Do not mark it paid from the success URL.
 
@@ -51,6 +53,7 @@ const { data, error } = await insforge.payments.createCheckoutSession('test', {
   lineItems: [{ stripePriceId: 'price_123', quantity: 1 }],
   successUrl: `${window.location.origin}/checkout/success`,
   cancelUrl: `${window.location.origin}/pricing`,
+  subject: user ? { type: 'user', id: user.id } : undefined,
   customerEmail: user?.email ?? null,
   metadata: { order_id: order.id },
   idempotencyKey: `cart:${cartId}`
@@ -172,7 +175,7 @@ Do not put Stripe secret keys in frontend code. Stripe keys are configured throu
 3. **Use explicit success and cancel URLs** matching the app routes.
 4. **Treat Stripe as source of truth** for catalog data. Use the CLI/dashboard to sync before relying on product or price IDs.
 5. **Use subjects consistently**. If subscriptions bill teams, always use `subject: { type: 'team', id: teamId }`.
-6. **Create payment-session RLS before subscription UI**. Checkout and portal creation are gated by app-specific permissions. See [backend-configuration.md](backend-configuration.md).
+6. **Create payment-session RLS before subscription UI**. Checkout creation needs `INSERT`; checkout requests with `idempotencyKey` also need matching `SELECT`. See [backend-configuration.md](backend-configuration.md).
 7. **Do not treat redirects as fulfillment**. Success pages should read app-owned fulfilled state.
 
 ## Common Mistakes
@@ -182,6 +185,7 @@ Do not put Stripe secret keys in frontend code. Stripe keys are configured throu
 | Putting `sk_test_...` or `sk_live_...` in frontend code | Configure keys with `npx @insforge/cli payments config set ...` |
 | Creating subscription checkout without a subject | Pass the app billing owner as `subject` |
 | Letting users submit arbitrary subject IDs | Add RLS on `payments.checkout_sessions` and `payments.customer_portal_sessions` based on membership/ownership |
+| Idempotent checkout retries fail after adding only `INSERT` | Add a matching `SELECT` policy for rows the caller may retry/read |
 | Reading payment admin tables from the browser | Create app-specific entitlement tables or a trusted edge function |
 | Using live environment during development | Use `test` until the developer approves production |
 | Marking an order paid on the success URL | Add backend fulfillment first, then read the app-owned order state |
