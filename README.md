@@ -27,12 +27,12 @@ Build full-stack applications with InsForge. This skill provides comprehensive g
 - **Authentication**: Sign up/in flows, OAuth, sessions, email verification
 - **Storage**: File uploads, downloads, bucket management
 - **Functions**: Serverless function deployment and invocation
-- **AI**: Chat completions, image generation, embeddings
+- **AI**: OpenRouter via OpenAI SDK, `npx @insforge/cli ai setup` for key setup, image/video generation, embeddings, deprecated InsForge SDK fallback
 - **Real-time**: WebSocket connections, subscriptions, event publishing
 - **Payments**: Stripe Checkout Sessions, subscriptions, and Billing Portal redirects
 - **Deployments**: Frontend app deployment to InsForge hosting
 
-**Key distinction**: Backend infrastructure uses the CLI skill. Client integration uses the `@insforge/sdk` in application code.
+**Key distinction**: Backend infrastructure uses the CLI skill. Most client integration uses `@insforge/sdk`; new AI features use OpenRouter with the OpenAI SDK and an API key set up with `npx @insforge/cli ai setup`.
 
 </details>
 
@@ -47,6 +47,7 @@ Create and manage InsForge projects from the command line. This skill provides c
 - **Edge Functions**: Deploy, invoke, and view function source
 - **Storage**: Bucket and object management (upload, download, list)
 - **Deployments**: Frontend app deployment and status tracking
+- **AI**: OpenRouter key setup with `npx @insforge/cli ai setup`
 - **Payments**: Stripe key setup, catalog sync, products/prices, webhooks
 - **Secrets**: Create, update, and manage project secrets
 - **CI/CD**: Non-interactive workflows using environment variables
@@ -156,7 +157,7 @@ skills/
 
 ### Documentation Pattern
 
-- **`sdk-integration.md`**: How to use `@insforge/sdk` in frontend application code
+- **`sdk-integration.md`**: How to use app-facing SDKs/APIs in application code. For AI, this means OpenRouter through the OpenAI SDK, with the old `insforge.ai` module only as a deprecated fallback.
 - **`backend-configuration.md`**: How to configure InsForge backend via HTTP API
 
 ## Contributing

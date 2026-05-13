@@ -1,7 +1,7 @@
 ---
 name: insforge-cli
 description: >-
-  Use this skill when managing InsForge infrastructure with the CLI: projects, SQL, migrations, RLS policies, functions, storage buckets, frontend deployments, compute services, secrets/env vars, Stripe payment keys/catalog/products/prices/webhooks, schedules, logs, diagnostics, import/export, **declarative auth redirect URLs via `insforge.toml`** (applied with `config apply`), or **managing backend branches** (creating a branch project to test risky schema/auth/RLS changes, merging a branch back to prod, resolving merge conflicts). For app code with @insforge/sdk, use the insforge skill instead.
+  Use this skill when managing InsForge infrastructure with the CLI: projects, SQL, migrations, RLS policies, functions, storage buckets, frontend deployments, compute services, secrets/env vars, AI/OpenRouter key setup, Stripe payment keys/catalog/products/prices/webhooks, schedules, logs, diagnostics, import/export, **declarative auth redirect URLs via `insforge.toml`** (applied with `config apply`), or **managing backend branches** (creating a branch project to test risky schema/auth/RLS changes, merging a branch back to prod, resolving merge conflicts). For app code with @insforge/sdk, use the insforge skill instead.
 license: MIT
 metadata:
   author: insforge
@@ -105,6 +105,11 @@ If no project linked: `npx @insforge/cli create` (new) or `npx @insforge/cli lin
 - `npx @insforge/cli storage list-objects <bucket> [--prefix] [--search] [--limit] [--sort]` — list objects
 - `npx @insforge/cli storage upload <file> --bucket <name> [--key <objectKey>]` — upload file
 - `npx @insforge/cli storage download <objectKey> --bucket <name> [--output <path>]` — download file
+
+### AI Model Gateway — `npx @insforge/cli ai`
+- `npx @insforge/cli ai setup` — fetch the linked project's active OpenRouter key from InsForge and write `OPENROUTER_API_KEY` to `.env.local` for local server-side development. Use `--env-file <path>` for non-standard projects.
+
+> Run this before implementing new OpenRouter/OpenAI SDK app code. Keep `OPENROUTER_API_KEY` server-only: never rename it to `NEXT_PUBLIC_*`, `VITE_*`, `PUBLIC_*`, or `REACT_APP_*`. For production deploys, add the same `OPENROUTER_API_KEY` to the hosting provider's server/runtime environment.
 
 ### Payments — `npx @insforge/cli payments`
 - `npx @insforge/cli payments status` — show Stripe key, account, sync, and webhook status
