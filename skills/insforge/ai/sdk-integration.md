@@ -148,6 +148,10 @@ while (video.status === 'pending' || video.status === 'processing') {
   video = await poll.json()
 }
 
+if (video.status !== 'completed') {
+  throw new Error(video.error ?? `Video generation ended with status: ${video.status}`)
+}
+
 console.log(video.unsigned_urls?.[0])
 ```
 
