@@ -105,7 +105,7 @@ const to = from + pageSize - 1
 
 const { data, count } = await insforge.database
   .from('posts')
-  .select('*', { count: 'exact' })
+  .select('id, title, created_at', { count: 'exact' })
   .range(from, to)
   .order('created_at', { ascending: false })
 ```
@@ -113,8 +113,8 @@ const { data, count } = await insforge.database
 ## Important Notes
 
 - **Insert requires array format**: Always use `insert([{...}])` not `insert({...})`
-- **Avoid large JSON/JSONB payloads in SDK reads/writes**: PostgREST can consume excessive memory when rows contain very large JSONB payloads. Normalize large or frequently accessed JSON into typed columns or child tables, and use JSONB only for small metadata/config.
-- **Select only the columns you need**: If a table has any large text/JSONB columns, avoid `select('*')` in list views. Fetch lightweight columns first, then load the large field only on a detail screen or via a purpose-built RPC.
+- **Avoid large JSON/JSONB payloads in SDK reads/writes**: PostgREST can consume excessive memory when rows contain multi-megabyte JSONB payloads. As a rule of thumb, treat JSONB around 1 MB or larger per row as a caution point for hot SDK paths, and normalize multi-megabyte or frequently accessed JSON into typed columns or child tables.
+- **Select only the columns you need**: If a table has any large text/JSONB columns, avoid `select('*')` in list views. Fetch lightweight columns first, then lazy-load fields over ~1 MB on a detail screen or through a purpose-built RPC.
 - All methods return `{ data, error }` - always check for errors
 
 ---
@@ -193,6 +193,7 @@ Fields:
    - Do not store large app state, document bodies, analytics payloads, or arrays of nested objects in a single JSONB column that the app reads/writes through PostgREST.
    - Prefer real columns for fields you filter, sort, display in lists, or update independently.
    - Move repeated nested objects into child tables with foreign keys and indexes.
+   - Measure suspicious payloads with `pg_column_size(jsonb_column)` and enforce limits or warnings during ingestion.
 
 ### Example: Generate Interface from Schema
 

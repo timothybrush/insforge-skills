@@ -198,8 +198,8 @@ npx @insforge/cli db migrations list --json
 1. Inspect live schema first        → npx @insforge/cli db tables / indexes / policies / triggers / functions
 2. Inspect remote migration state   → npx @insforge/cli db migrations list
 3. Sync remote history locally      → npx @insforge/cli db migrations fetch
-4. Create the next migration file   → npx @insforge/cli db migrations new <migration-name>
-5. Design large JSONB as columns/child tables when needed
+4. Design large JSONB as columns/child tables when needed → see rule 4 above
+5. Create the next migration file   → npx @insforge/cli db migrations new <migration-name>
 6. Edit the SQL file                → migrations/<version>_<migration-name>.sql
 7. Apply one migration explicitly   → npx @insforge/cli db migrations up <filename>
 8. Or batch apply safely            → npx @insforge/cli db migrations up --to <target> / --all
