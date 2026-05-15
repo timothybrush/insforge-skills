@@ -203,7 +203,7 @@ Advisor issues persist across scans until resolved (issue objects carry `isResol
 1. **Scan** — `diagnose advisor --severity critical` to get the working set.
 2. **Drill** — for each issue, use the relevant deep-dive section above to verify the live state matches advisor's report.
 3. **Decide** — only proceed to a fix after you've confirmed the issue is real. Advisor surfaces rule violations; whether they're business-relevant is a judgment call.
-4. **Fix** — apply the change (RLS edit, index, query rewrite, etc.) via `insforge-cli`.
+4. **Fix** — apply the change (RLS edit, index, query rewrite, etc.) via the `insforge-cli` skill (`npx @insforge/cli ...` commands).
 5. **Re-scan** — run `diagnose advisor` again. The fixed issue should appear with `isResolved: true` on the next scheduled scan, or drop off the active set.
 
 Do not rely on the same scan twice across a fix — always re-scan after applying changes.

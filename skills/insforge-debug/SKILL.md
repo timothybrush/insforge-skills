@@ -62,14 +62,14 @@ Match the symptom to a scenario, then follow that scenario's steps.
 | Symptom | Scenario |
 |---------|----------|
 | SDK returns `{ data: null, error: {...} }` | [#1 SDK Error](#scenario-1-sdk-returns-error-object) |
-| HTTP 400 / 401 / 403 / 404 / 429 / 500 | [#2 HTTP Status Code](#scenario-2-http-status-code-anomaly) |
+| HTTP 400 / 401 / 403 / 404 / 429 / 500 / 502 / 503 / 504 | [#2 HTTP Status Code](#scenario-2-http-status-code-anomaly) |
 | Function throws or times out | [#3 Edge Function Failure](#scenario-3-edge-function-execution-failuretimeout) |
 | Login fails / token expired / OAuth error | [#4 Auth Failure](#scenario-4-authenticationauthorization-failure) |
 | Channel won't connect / messages missing | [#5 Realtime Issues](#scenario-5-realtime-channel-issues) |
 | `functions deploy` fails | [#6 Function Deploy](#scenario-6-edge-function-deploy-failure) |
 | `deployments deploy` fails / Vercel error | [#7 Frontend Deploy](#scenario-7-frontend-vercel-deploy-failure) |
 
-For symptoms like "queries are slow", "EC2 looks pegged", or "I want to audit my RLS policies" — switch to `insforge-backend-advisor`.
+> Note: a single specific failing URL/request — even a slow query or a 504 on one endpoint — belongs here. Switch to `insforge-backend-advisor` only for system-wide problems ("everything is slow", "high CPU/memory", connection pool exhaustion) or proactive audits without a concrete failing request ("review RLS", "find slow queries in general", "pre-launch health check").
 
 ---
 
@@ -106,7 +106,7 @@ npx @insforge/cli diagnose db --check connections,locks,slow-queries
 
 ## Scenario 2: HTTP Status Code Anomaly
 
-**Symptoms**: API calls return 400, 401, 403, 404, 429, or 500.
+**Symptoms**: API calls return 400, 401, 403, 404, 429, 500, 502, 503, or 504.
 
 **Steps**:
 
@@ -121,6 +121,7 @@ npx @insforge/cli diagnose db --check connections,locks,slow-queries
 | 404 | Endpoint or resource doesn't exist | `npx @insforge/cli metadata --json` |
 | 429 | Rate limit hit — **no backend logs recorded** | See 429 note below |
 | 500 | Server-side error | `npx @insforge/cli diagnose logs` |
+| 502 / 503 / 504 | Gateway/timeout — upstream unresponsive | See 5xx gateway note below |
 
 3. For 500 errors, also check aggregate error logs across all sources:
 
@@ -136,7 +137,23 @@ npx @insforge/cli diagnose logs
      ```
    - A 429 status confirms the request was rate-limited. The fix is always on the client side: reduce request frequency, add backoff/debounce, or batch operations.
 
-**Information gathered**: Status code context, relevant log entries, request/response details from logs. For 429: client-side request patterns and backend load metrics.
+5. **502 / 503 / 504 Gateway**: the gateway couldn't reach the backend in time, or the backend is dead/overloaded. Check which subsystem the failing URL belongs to and follow that thread:
+   - If the URL is `/functions/...` or an edge function endpoint:
+     ```bash
+     npx @insforge/cli logs function.logs --limit 50
+     ```
+   - If the URL is `/api/database/...` (PostgREST / DB-backed): check both layers, often the upstream is postgres-bound:
+     ```bash
+     npx @insforge/cli logs postgREST.logs --limit 50
+     npx @insforge/cli logs postgres.logs --limit 50
+     ```
+   - In all cases, check the main backend log for crash/restart signals around the timestamp:
+     ```bash
+     npx @insforge/cli logs insforge.logs --limit 50
+     ```
+   - If **every** request is returning 502/503/504, not just this one, the cause is system-wide — switch to `insforge-backend-advisor` for a health audit (`diagnose advisor --category health`, `diagnose db --check connections,locks`, `diagnose metrics`).
+
+**Information gathered**: Status code context, relevant log entries, request/response details from logs. For 429: client-side request patterns and backend load metrics. For 5xx gateway: per-subsystem log thread tied to the failing URL plus crash/restart signals.
 
 > If the 403 turns out to be a misconfigured RLS policy (not just a runtime denial), the policy review itself belongs in `insforge-backend-advisor` under [Security Audit](../insforge-backend-advisor/SKILL.md#security-audit).
 
