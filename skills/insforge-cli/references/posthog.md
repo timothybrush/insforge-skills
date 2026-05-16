@@ -65,4 +65,4 @@ PostHog's `sessions` materialized view (which powers Web Analytics queries) has 
 |---------|----------|
 | Running `npx @insforge/cli posthog setup` outside the linked project directory | The CLI reads `.insforge/project.json` from cwd. Run it from the project root after `npx @insforge/cli link --project-id <id>` |
 | Headless environment, browser doesn't open for the InsForge OAuth step | Pass `--skip-browser` and copy the printed URL onto a machine with a browser |
-| Agent ran `posthog setup` and the wizard command printed at the end was never executed | The wizard is interactive — the agent should ask the user to run it (`! npx -y @posthog/wizard@latest`). The InsForge dashboard connection is already in place, but app-code instrumentation is not. |
+| Agent ran `posthog setup` and the wizard command printed at the end was never executed | The wizard is interactive (stdin prompts + browser OAuth) and won't run via agent shell or `!` prefix — the user has to run it in their real terminal app. The InsForge dashboard connection is already in place, but app-code instrumentation is not. |
