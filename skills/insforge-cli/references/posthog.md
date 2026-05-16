@@ -55,6 +55,8 @@ The whole flow involves two OAuths in sequence, both targeting PostHog but for d
 
 Practically the user signs in with the same PostHog account both times and ends up on the same PostHog project.
 
+> ⚠️ **Pick the same PostHog project in both OAuths.** The two flows don't auto-coordinate: if step 2 connects InsForge to project A but the wizard installs the SDK pointing at project B, the app will emit events to B while the InsForge Analytics page reads from A — the dashboard will stay empty even though events are visibly flowing in PostHog. Fix: re-run `npx -y @posthog/wizard@latest` and pick the same project that InsForge cli-start connected to. (Re-running `posthog setup` alone won't help — cli-start short-circuits to "connected" once a `posthog_connections` row exists; to change the dashboard-side project, the user has to disconnect in the InsForge dashboard first.)
+
 ## Web Analytics ingestion delay
 
 PostHog's `sessions` materialized view (which powers Web Analytics queries) has multi-hour ingestion lag for new projects. Events show in PostHog's Activity page within seconds, but `visitors / views / sessions` on Web Analytics and the InsForge Analytics page can return 0 for the first 24h. This is not a CLI bug — wait it out.
