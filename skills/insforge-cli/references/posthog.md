@@ -4,7 +4,7 @@ One-shot command that ensures the InsForge dashboard has a PostHog connection, t
 
 > ⚠️ **For coding agents:** `npx @insforge/cli posthog setup` itself is safe to run from your shell — it just ensures the dashboard connection and exits. The **wizard command it prints at the end** (`npx -y @posthog/wizard@latest`) is interactive: it prompts on stdin (framework picker), opens a browser for OAuth, and waits for the user to pick a PostHog project. It will **not** work via the agent shell or the `!` prefix — it has to be run in the user's real terminal app (Terminal.app, iTerm, etc.). After `posthog setup` exits, ask the user to switch to their terminal and run:
 >
-> ```
+> ```bash
 > npx -y @posthog/wizard@latest
 > ```
 >
