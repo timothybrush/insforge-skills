@@ -39,17 +39,19 @@ See [references/ai-assisted.md](references/ai-assisted.md) for when to use this 
 
 Each primitive is one independently-queryable observability surface backed by a distinct underlying data source. Real diagnoses are compositions of primitives.
 
-| Primitive | What you see | Reference |
-|-----------|-------------|-----------|
-| **Logs** | Time-stream of events from 5 backend sources (`insforge.logs` / `postgREST.logs` / `postgres.logs` / `function.logs` / `function-deploy.logs`) | [references/logs.md](references/logs.md) |
-| **Metrics** | EC2 instance time-series (CPU / memory / disk / network) over `1h` / `6h` / `24h` / `7d` | [references/metrics.md](references/metrics.md) |
-| **DB health** | Current Postgres state via 7 named checks (`connections` / `slow-queries` / `bloat` / `size` / `index-usage` / `locks` / `cache-hit`) | [references/db-health.md](references/db-health.md) |
-| **Advisor** | Static-scan issues across 3 categories (`security` / `performance` / `health`) with `ruleId` / `affectedObject` / `recommendation` | [references/advisor.md](references/advisor.md) |
-| **Policies** | Active RLS rules from `pg_policies` (USING / WITH CHECK per cmd per role) | [references/policies.md](references/policies.md) |
-| **Metadata** | Declarative backend state dump (auth config / tables / buckets / functions / AI models / realtime channels) | [references/metadata.md](references/metadata.md) |
-| **Error objects** | SDK error envelope + HTTP status — the routing table from a client-visible error to the right log source | [references/error-objects.md](references/error-objects.md) |
-| **Deploy state** | Frontend (Vercel) deployment history + per-deploy metadata, plus edge function deploy logs | [references/deploy-state.md](references/deploy-state.md) |
-| **AI assist** | LLM agent that combines the other primitives — returns a diagnosis with suggestions | [references/ai-assisted.md](references/ai-assisted.md) |
+All commands run via `npx @insforge/cli ...`. The `(command)` shown next to each primitive is the actual CLI command — primitive names are concept labels, **not** CLI subcommand names (e.g., "DB health" is `diagnose db`, not `diagnose db-health`; "Policies" is `db policies`, not `diagnose policies`).
+
+| Primitive (command) | What you see | Reference |
+|---------------------|-------------|-----------|
+| **Logs** (`logs <source>`; `diagnose logs` for cross-source aggregate) | Time-stream of events from 5 backend sources (`insforge.logs` / `postgREST.logs` / `postgres.logs` / `function.logs` / `function-deploy.logs`) | [references/logs.md](references/logs.md) |
+| **Metrics** (`diagnose metrics`) | EC2 instance time-series (CPU / memory / disk / network) over `1h` / `6h` / `24h` / `7d` | [references/metrics.md](references/metrics.md) |
+| **DB health** (`diagnose db`) | Current Postgres state via 7 named checks (`connections` / `slow-queries` / `bloat` / `size` / `index-usage` / `locks` / `cache-hit`) | [references/db-health.md](references/db-health.md) |
+| **Advisor** (`diagnose advisor --json`) | Static-scan issues across 3 categories (`security` / `performance` / `health`) with `ruleId` / `affectedObject` / `recommendation` | [references/advisor.md](references/advisor.md) |
+| **Policies** (`db policies`) | Active RLS rules from `pg_policies` (USING / WITH CHECK per cmd per role) — returns all policies as a dump | [references/policies.md](references/policies.md) |
+| **Metadata** (`metadata --json`) | Declarative backend state dump (auth config / tables / buckets / functions / AI models / realtime channels) | [references/metadata.md](references/metadata.md) |
+| **Error objects** (no command — read SDK / HTTP response) | SDK error envelope + HTTP status — the routing table from a client-visible error to the right log source | [references/error-objects.md](references/error-objects.md) |
+| **Deploy state** (`deployments status --json` + `logs function-deploy.logs`) | Frontend (Vercel) deployment history + per-deploy metadata, plus edge function deploy logs | [references/deploy-state.md](references/deploy-state.md) |
+| **AI assist** (`diagnose --ai "<description>"`) | LLM agent that combines the other primitives — returns a diagnosis with suggestions | [references/ai-assisted.md](references/ai-assisted.md) |
 
 ## Symptom Recipes
 
@@ -67,11 +69,14 @@ Each recipe is a primitive call sequence with one-line "look for X" at each step
 2. **logs** (right source for that status) — find the failing request line and error.
 3. **metrics** — only for 5xx patterns spanning multiple endpoints, to confirm system-wide load issue.
 
-### Recipe: 403 / RLS denied on a specific request
+### Recipe: RLS access issue (403 on write, or empty result on read)
 
-1. **logs** (`postgREST.logs`) — find the policy violation event with table and role context.
-2. **policies** — list policies for that table; walk USING / WITH CHECK against the actual request.
-3. **metadata** — verify auth config (which claim feeds `auth.uid()` / `requesting_user_id()`).
+> Same bug, two surfacings. Writes (INSERT / UPDATE / DELETE) fail loudly with **403**. Reads (SELECT) fail silently with an **empty array** — PostgREST filters denied rows out instead of returning 403, so the request looks successful with zero rows. Diagnosis path is the same except step 1 only applies to the 403 variant.
+
+1. **logs** (`postgREST.logs`) — *403 variant only*: find the policy violation event with table and role context. *Empty-result variant*: skip — no error is logged for silently-filtered rows.
+2. **policies** — list policies for that table; walk USING / WITH CHECK against the actual request and the JWT claim used.
+3. **metadata** — verify auth config (which claim feeds `auth.uid()` / `requesting_user_id()`; for third-party auth like Clerk/Auth0, is the provider registered as a JWT issuer?).
+4. **db query** (`db query "<sql>"`) — *empty-result variant only*: confirm rows that *should* be visible actually exist by querying as service role (not as the user): `npx @insforge/cli db query "SELECT id, user_id FROM <table>"`. Distinguishes "RLS filtered everything" from "no matching data exists".
 
 ### Recipe: Login fails / OAuth callback errors / token expired
 
