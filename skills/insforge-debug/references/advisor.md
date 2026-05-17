@@ -59,7 +59,7 @@ Each scan returns:
 
 ## Boundaries
 
-- **Scans are not real-time.** A new scan triggers when the platform schedules it; recommendation lag behind very recent changes. Force a fresh scan if needed.
+- **Scans are not real-time.** A new scan triggers when the platform schedules it; recommendations lag behind very recent changes. Force a fresh scan if needed.
 - **Recommendations are static suggestions, not auto-fixes.** Always validate against current schema state before applying.
 - **`affectedObject` is a string, not a typed reference.** It names the object but doesn't link to it — combine with [metadata](metadata.md) / [policies](policies.md) to inspect.
 - **Not available when linked via `--api-key`.** Requires `insforge login` (Platform auth).

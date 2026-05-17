@@ -50,7 +50,7 @@ All commands run via `npx @insforge/cli ...`. The `(command)` shown next to each
 | **Policies** (`db policies`) | Active RLS rules from `pg_policies` (USING / WITH CHECK per cmd per role) — returns all policies as a dump | [references/policies.md](references/policies.md) |
 | **Metadata** (`metadata --json`) | Declarative backend state dump (auth config / tables / buckets / functions / AI models / realtime channels) | [references/metadata.md](references/metadata.md) |
 | **Error objects** (no command — read SDK / HTTP response) | SDK error envelope + HTTP status — the routing table from a client-visible error to the right log source | [references/error-objects.md](references/error-objects.md) |
-| **Deploy state** (`deployments status --json` + `logs function-deploy.logs`) | Frontend (Vercel) deployment history + per-deploy metadata, plus edge function deploy logs | [references/deploy-state.md](references/deploy-state.md) |
+| **Deploy state** (`deployments list` + `deployments status <id> --json` + `logs function-deploy.logs`) | Frontend (Vercel) deployment history + per-deploy metadata, plus edge function deploy logs | [references/deploy-state.md](references/deploy-state.md) |
 | **AI assist** (`diagnose --ai "<description>"`) | LLM agent that combines the other primitives — returns a diagnosis with suggestions | [references/ai-assisted.md](references/ai-assisted.md) |
 
 ## Symptom Recipes
