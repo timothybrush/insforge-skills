@@ -1,377 +1,151 @@
 ---
 name: insforge-debug
 description: >-
-  Use this skill when encountering errors, bugs, or unexpected behavior in an
-  InsForge project that has a concrete symptom — an SDK error object, an HTTP
-  4xx/5xx response, a failing edge function, a login that won't go through,
-  a realtime channel that won't connect, or a deploy that just errored.
-  This skill guides diagnostic command execution to locate the cause. The
-  manual scenarios surface logs/status only; the AI-assisted path
-  (`diagnose --ai`) additionally returns suggested causes and solutions.
-  For proactive health audits without a concrete symptom (security review,
-  performance scan, system health check), use `insforge-backend-advisor`
-  instead.
+  Use when diagnosing problems in an InsForge project — reactive failures (SDK
+  error object, HTTP 4xx/5xx, gateway timeout 502/503/504, edge function failure
+  or timeout, login/OAuth/auth errors, RLS denial, realtime channel issues,
+  slow query on one endpoint, edge function or Vercel deploy failure), proactive
+  audits (security/RLS review, performance/index review, system health check,
+  pre-launch readiness), or when the user has an error but doesn't know where
+  to start.
 license: MIT
 metadata:
   author: insforge
-  version: "1.1.0"
+  version: "2.0.0"
   organization: InsForge
   date: May 2026
 ---
 
 # InsForge Debug
 
-Diagnose concrete problems in InsForge projects — from frontend SDK errors to edge function failures. This skill helps you **locate** the cause of a known symptom by running the right commands and surfacing logs/status. The manual scenarios below locate problems without suggesting fixes; the [AI-assisted path](#ai-assisted-diagnosis-fastest-path) additionally returns suggested causes and solutions.
+Diagnose problems in InsForge projects by combining the backend's observability primitives — logs, metrics, db-health, advisor, policies, metadata, error objects, deploy state, and AI assist. This skill provides:
 
-For a proactive audit (security review, slow-query hunt, backend health check) without a specific failing request in hand, use `insforge-backend-advisor` instead.
+1. A reference per **debug primitive** (one observability surface each — under `references/`)
+2. **Symptom Recipes** (below) that name the primitive sequence for known reactive symptoms and proactive audits
 
 **Always use `npx @insforge/cli`** — never install the CLI globally.
 
-## AI-Assisted Diagnosis (Fastest Path)
+## Fastest Path: AI-Assisted Triage
 
-When the user gives a concrete description of the problem (error message, failing URL, HTTP status), hand it to the InsForge debug agent. It inspects backend state on its own and returns a diagnosis plus possible solutions.
+When the user gives a concrete description (error message, failing URL, HTTP status), hand it to the InsForge debug agent. Unlike the other primitives, this one returns suggestions, not just observations — verify the diagnosis against the primitives it cites before acting on it.
 
 ```bash
 npx @insforge/cli diagnose --ai "<issue description>"
 ```
 
-**When to use this path first**:
-- The user pastes an error, request URL, or status code and asks "why?"
-- You want a fast first pass before drilling into the manual scenarios below
-- The problem spans multiple subsystems (frontend + backend + database) and you're not sure where to start
+See [references/ai-assisted.md](references/ai-assisted.md) for when to use this first vs when to skip, and how to verify the output.
 
-**Examples**:
+## Debug Primitives
 
-```bash
-# Edge function error
-npx @insforge/cli diagnose --ai "I invoked edge function https://kttprzh4.functions.insforge.app/newton, got error: 508: Loop Detected (LOOP_DETECTED)\n\nRecursive requests to the same deployment cannot be processed."
+Each primitive is one independently-queryable observability surface backed by a distinct underlying data source. Real diagnoses are compositions of primitives.
 
-# Slow database query
-npx @insforge/cli diagnose --ai "I query data with https://kttprzh4.us-west.insforge.app/api/database/records/order_customer_details?select=*&order=total_amount.desc, it costs 1.4s, why?"
+All commands run via `npx @insforge/cli ...`. The `(command)` shown next to each primitive is the actual CLI command — primitive names are concept labels, **not** CLI subcommand names (e.g., "DB health" is `diagnose db`, not `diagnose db-health`; "Policies" is `db policies`, not `diagnose policies`).
 
-# Unresponsive backend / 504
-npx @insforge/cli diagnose --ai "my backend is unresponsive, request https://kttprzh4.us-west.insforge.app/api/database/records/todo?select=*&order=created_at.desc got 504 error, why?"
-```
+| Primitive (command) | What you see | Reference |
+|---------------------|-------------|-----------|
+| **Logs** (`logs <source>`; `diagnose logs` for cross-source aggregate) | Time-stream of events from 5 backend sources (`insforge.logs` / `postgREST.logs` / `postgres.logs` / `function.logs` / `function-deploy.logs`) | [references/logs.md](references/logs.md) |
+| **Metrics** (`diagnose metrics`) | EC2 instance time-series (CPU / memory / disk / network) over `1h` / `6h` / `24h` / `7d` | [references/metrics.md](references/metrics.md) |
+| **DB health** (`diagnose db`) | Current Postgres state via 7 named checks (`connections` / `slow-queries` / `bloat` / `size` / `index-usage` / `locks` / `cache-hit`) | [references/db-health.md](references/db-health.md) |
+| **Advisor** (`diagnose advisor --json`) | Static-scan issues across 3 categories (`security` / `performance` / `health`) with `ruleId` / `affectedObject` / `recommendation` | [references/advisor.md](references/advisor.md) |
+| **Policies** (`db policies`) | Active RLS rules from `pg_policies` (USING / WITH CHECK per cmd per role) — returns all policies as a dump | [references/policies.md](references/policies.md) |
+| **Metadata** (`metadata --json`) | Declarative backend state dump (auth config / tables / buckets / functions / AI models / realtime channels) | [references/metadata.md](references/metadata.md) |
+| **Error objects** (no command — read SDK / HTTP response) | SDK error envelope + HTTP status — the routing table from a client-visible error to the right log source | [references/error-objects.md](references/error-objects.md) |
+| **Deploy state** (`deployments list` + `deployments status <id> --json` + `logs function-deploy.logs`) | Frontend (Vercel) deployment history + per-deploy metadata, plus edge function deploy logs | [references/deploy-state.md](references/deploy-state.md) |
+| **AI assist** (`diagnose --ai "<description>"`) | LLM agent that combines the other primitives — returns a diagnosis with suggestions | [references/ai-assisted.md](references/ai-assisted.md) |
 
-Unlike the other commands in this skill, `diagnose --ai` returns both a diagnosis and suggested solutions. Relay them to the user as a starting point, but verify against the underlying logs/metrics (the scenarios below) before committing to a fix.
+## Symptom Recipes
 
-## Quick Triage
+Each recipe is a primitive call sequence with one-line "look for X" at each step. Command syntax, flags, and deep interpretation are in the per-primitive references above.
 
-Match the symptom to a scenario, then follow that scenario's steps.
+### Recipe: SDK returned `{ data: null, error: { code, message } }`
 
-| Symptom | Scenario |
-|---------|----------|
-| SDK returns `{ data: null, error: {...} }` | [#1 SDK Error](#scenario-1-sdk-returns-error-object) |
-| HTTP 400 / 401 / 403 / 404 / 429 / 500 / 502 / 503 / 504 | [#2 HTTP Status Code](#scenario-2-http-status-code-anomaly) |
-| Function throws or times out | [#3 Edge Function Failure](#scenario-3-edge-function-execution-failuretimeout) |
-| Login fails / token expired / OAuth error | [#4 Auth Failure](#scenario-4-authenticationauthorization-failure) |
-| Channel won't connect / messages missing | [#5 Realtime Issues](#scenario-5-realtime-channel-issues) |
-| `functions deploy` fails | [#6 Function Deploy](#scenario-6-edge-function-deploy-failure) |
-| `deployments deploy` fails / Vercel error | [#7 Frontend Deploy](#scenario-7-frontend-vercel-deploy-failure) |
+1. **error-objects** — read code/message/details. If code starts with `PGRST*`, route by prefix using the table in the reference.
+2. **logs** (matching source per error-objects routing) — find the error timestamp, get the full backend-side context.
+3. **db-health** (`connections`, `locks`, `slow-queries`) — only if the error suggests DB issue (PostgREST timeout, lock conflict).
 
-> Note: a single specific failing URL/request — even a slow query or a 504 on one endpoint — belongs here. Switch to `insforge-backend-advisor` only for system-wide problems ("everything is slow", "high CPU/memory", connection pool exhaustion) or proactive audits without a concrete failing request ("review RLS", "find slow queries in general", "pre-launch health check").
+### Recipe: HTTP 4xx/5xx response on a specific request
 
----
+1. **error-objects** — use the HTTP status routing table to pick the log source (each status has a distinct path; 429 is special).
+2. **logs** (right source for that status) — find the failing request line and error.
+3. **metrics** — only for 5xx patterns spanning multiple endpoints, to confirm system-wide load issue.
 
-## Scenario 1: SDK Returns Error Object
+### Recipe: RLS access issue (403 on write, or empty result on read)
 
-**Symptoms**: SDK call returns `{ data: null, error: { code, message, details } }`. PostgREST error codes like `PGRST301`, `PGRST204`, etc.
+> Same bug, two surfacings. Writes (INSERT / UPDATE / DELETE) fail loudly with **403**. Reads (SELECT) fail silently with an **empty array** — PostgREST filters denied rows out instead of returning 403, so the request looks successful with zero rows. Diagnosis path is the same except step 1 only applies to the 403 variant.
 
-**Steps**:
+1. **logs** (`postgREST.logs`) — *403 variant only*: find the policy violation event with table and role context. *Empty-result variant*: skip — no error is logged for silently-filtered rows.
+2. **policies** — list policies for that table; walk USING / WITH CHECK against the actual request and the JWT claim used.
+3. **metadata** — verify auth config (which claim feeds `auth.uid()` / `requesting_user_id()`; for third-party auth like Clerk/Auth0, is the provider registered as a JWT issuer?).
+4. **db query** (`db query "<sql>"`) — *empty-result variant only*: confirm rows that *should* be visible actually exist by querying as service role (not as the user): `npx @insforge/cli db query "SELECT id, user_id FROM <table>"`. Distinguishes "RLS filtered everything" from "no matching data exists".
 
-1. Read the error object — extract `code`, `message`, `details` from the SDK response.
-2. Check aggregated error logs to find matching backend errors:
+### Recipe: Login fails / OAuth callback errors / token expired
 
-```bash
-npx @insforge/cli diagnose logs
-```
+1. **logs** (`insforge.logs`) — find auth errors with timestamp and provider context.
+2. **metadata** — verify the provider is enabled, redirect URLs match the callback URL exactly (protocol + host + path).
 
-3. Based on the error code prefix, drill into the relevant log source:
+### Recipe: Edge function runtime error / timeout
 
-| Error pattern | Log source | Command |
-|---------------|------------|---------|
-| `PGRST*` (PostgREST) | postgREST.logs | `npx @insforge/cli logs postgREST.logs --limit 50` |
-| Database/SQL errors | postgres.logs | `npx @insforge/cli logs postgres.logs --limit 50` |
-| Generic 500 / server error | insforge.logs | `npx @insforge/cli logs insforge.logs --limit 50` |
+1. **logs** (`function.logs`) — get the error stack and execution context.
+2. **metadata** — confirm the function exists and `status: "active"`.
+3. (If needed) `npx @insforge/cli functions code <slug>` — inspect the source for obvious issues.
 
-4. If the error is DB-related, check database health for additional context:
+### Recipe: `functions deploy` failed
 
-```bash
-npx @insforge/cli diagnose db --check connections,locks,slow-queries
-```
+1. **deploy-state** (`function-deploy.logs`) — find the build/push error.
+2. **metadata** — confirm whether the function ended up in the active list (partial-deploy detection).
 
-**Information gathered**: Error code, backend log entries around the error timestamp, database health status.
+### Recipe: `deployments deploy` failed (Vercel)
 
----
+1. **deploy-state** (`deployments list` + `status <id> --json`) — read `status`, `metadata.webhookEventType`, and `envVarKeys`.
+2. **Local** `npm run build` — reproduce the same error locally for faster iteration.
 
-## Scenario 2: HTTP Status Code Anomaly
+### Recipe: Single slow query / one endpoint slow
 
-**Symptoms**: API calls return 400, 401, 403, 404, 429, 500, 502, 503, or 504.
+1. **logs** (`postgres.logs`) — find the query text and timestamp.
+2. **db-health** (`slow-queries`, `index-usage`) — confirm it's in `pg_stat_statements`; check for missing index.
+3. **policies** — if it's an RLS-gated table, verify the policy isn't adding hidden joins.
 
-**Steps**:
+### Recipe: All responses slow / high CPU/memory (active incident)
 
-1. Identify the status code from the response.
-2. Follow the path for that status code:
+1. **metrics** (`--range 1h`) — confirm system-wide pressure (CPU / memory / disk).
+2. **db-health** — DB is the most common bottleneck; check `connections`, `locks`, `slow-queries`.
+3. **logs** (`diagnose logs` aggregate) — error patterns across sources at the spike timestamp.
+4. **advisor** (`--severity critical`) — pre-existing known issues that may explain the degradation.
 
-| Status | What to check | Command |
-|--------|---------------|---------|
-| 400 | Request payload/params malformed | `npx @insforge/cli logs postgREST.logs --limit 50` |
-| 401 | Auth token missing or expired | `npx @insforge/cli logs insforge.logs --limit 50` |
-| 403 | RLS policy or permission denied | `npx @insforge/cli logs insforge.logs --limit 50` |
-| 404 | Endpoint or resource doesn't exist | `npx @insforge/cli metadata --json` |
-| 429 | Rate limit hit — **no backend logs recorded** | See 429 note below |
-| 500 | Server-side error | `npx @insforge/cli diagnose logs` |
-| 502 / 503 / 504 | Gateway/timeout — upstream unresponsive | See 5xx gateway note below |
+### Recipe: Realtime channel won't connect / messages missing
 
-3. For 500 errors, also check aggregate error logs across all sources:
+1. **logs** (`insforge.logs`) — WebSocket errors and subscription failures.
+2. **metadata** — verify the channel pattern matches what the client subscribes to, `enabled: true`.
+3. **policies** — RLS on the underlying table (realtime delivers row changes; RLS gates which rows the subscriber sees).
 
-```bash
-npx @insforge/cli diagnose logs
-```
+### Recipe: 429 rate limit
 
-4. **429 Rate Limit**: The backend does not log 429 responses and does not return `Retry-After` or `X-RateLimit-*` headers. Checking logs will not help. Instead:
-   - Review client code for high-frequency request patterns: loops without throttling, missing debounce, retry without exponential backoff, or parallel calls that could be batched.
-   - Check overall backend load to see if the system is under heavy traffic:
-     ```bash
-     npx @insforge/cli diagnose metrics --range 1h
-     ```
-   - A 429 status confirms the request was rate-limited. The fix is always on the client side: reduce request frequency, add backoff/debounce, or batch operations.
+1. **error-objects** — confirm 429 status. **No logs are recorded for 429s; no `Retry-After` header is returned.** Don't waste time grepping logs.
+2. **metrics** (`--range 1h`) — overall backend load context.
+3. **Fix is always client-side**: debounce, batch, exponential backoff, eliminate retry loops.
 
-5. **502 / 503 / 504 Gateway**: the gateway couldn't reach the backend in time, or the backend is dead/overloaded. Check which subsystem the failing URL belongs to and follow that thread:
-   - If the URL is `/functions/...` or an edge function endpoint:
-     ```bash
-     npx @insforge/cli logs function.logs --limit 50
-     ```
-   - If the URL is `/api/database/...` (PostgREST / DB-backed): check both layers, often the upstream is postgres-bound:
-     ```bash
-     npx @insforge/cli logs postgREST.logs --limit 50
-     npx @insforge/cli logs postgres.logs --limit 50
-     ```
-   - In all cases, check the main backend log for crash/restart signals around the timestamp:
-     ```bash
-     npx @insforge/cli logs insforge.logs --limit 50
-     ```
-   - If **every** request is returning 502/503/504, not just this one, the cause is system-wide — switch to `insforge-backend-advisor` for a health audit (`diagnose advisor --category health`, `diagnose db --check connections,locks`, `diagnose metrics`).
+### Recipe: Gateway timeout (502 / 503 / 504) on a specific URL
 
-**Information gathered**: Status code context, relevant log entries, request/response details from logs. For 429: client-side request patterns and backend load metrics. For 5xx gateway: per-subsystem log thread tied to the failing URL plus crash/restart signals.
+Route by URL subsystem before drilling:
 
-> If the 403 turns out to be a misconfigured RLS policy (not just a runtime denial), the policy review itself belongs in `insforge-backend-advisor` under [Security Audit](../insforge-backend-advisor/SKILL.md#security-audit).
+| URL pattern | Drill into |
+|-------------|-----------|
+| `/api/database/records/...` | **logs** (`postgREST.logs` → `postgres.logs`) + **db-health** (`locks`, `slow-queries`) |
+| `/functions/<slug>` | **logs** (`function.logs`) — function may be crash-looping |
+| `/api/auth/...` | **logs** (`insforge.logs`) |
+| Any path during system-wide spike | **metrics** (`--range 1h`) |
 
----
+### Recipe: Pre-launch / proactive audit
 
-## Scenario 3: Edge Function Execution Failure/Timeout
+> Requires Platform login (`npx @insforge/cli login`). **Not available when the project is linked via `--api-key`** — fall back to `db-health` + `policies` + `metadata` for a manual audit in that case.
 
-**Symptoms**: `functions invoke` returns error, function times out, or throws runtime exception.
+1. **advisor** — full scan, then `--severity critical` first, then warnings.
+2. **advisor** (`--category security`) — focus on security issues; cross-verify with **policies** (RLS coverage) and **metadata** (auth config, public buckets, secret presence).
+3. **advisor** (`--category performance`) — cross-verify with **db-health** (`slow-queries`, `index-usage`, `bloat`).
+4. **advisor** (`--category health`) — cross-verify with **metrics** (resource trends over `7d`).
+5. After fixes, re-run **advisor** and confirm `isResolved: true` for each addressed `ruleId`.
 
-**Steps**:
+### Recipe: Don't know where to start
 
-1. Check function execution logs:
-
-```bash
-npx @insforge/cli logs function.logs --limit 50
-```
-
-2. Verify the function exists and is active:
-
-```bash
-npx @insforge/cli functions list
-```
-
-3. Inspect the function source for obvious issues:
-
-```bash
-npx @insforge/cli functions code <slug>
-```
-
-**Information gathered**: Function runtime errors, function status, source code, EC2 resource metrics.
-
----
-
-## Scenario 4: Authentication/Authorization Failure
-
-**Symptoms**: Login fails at runtime, signup errors, token expired, OAuth callback errors, a specific request returns 403 with an RLS denial.
-
-**Steps**:
-
-1. Check insforge.logs for auth-related errors (login failures, token issues, OAuth errors):
-
-```bash
-npx @insforge/cli logs insforge.logs --limit 50
-```
-
-2. Check postgREST.logs for RLS policy violations at runtime:
-
-```bash
-npx @insforge/cli logs postgREST.logs --limit 50
-```
-
-3. Verify the project's auth configuration:
-
-```bash
-npx @insforge/cli metadata --json
-```
-
-4. If postgREST.logs shows an RLS denial and you need to read the policy that fired, inspect the live policies on the affected table:
-
-```bash
-npx @insforge/cli db policies
-```
-
-**Information gathered**: Auth error details, RLS violation logs around the failing request, auth configuration state, active RLS policies on the affected table.
-
-> This scenario covers **runtime** auth failures (a specific login or request failed). For a full proactive audit of RLS policies, secrets, or auth provider configuration across the whole project, use `insforge-backend-advisor` → [Security Audit](../insforge-backend-advisor/SKILL.md#security-audit).
-
----
-
-## Scenario 5: Realtime Channel Issues
-
-**Symptoms**: WebSocket won't connect, channel subscription fails, messages not received or lost.
-
-**Steps**:
-
-1. Check insforge.logs for realtime/WebSocket errors:
-
-```bash
-npx @insforge/cli logs insforge.logs --limit 50
-```
-
-2. Verify the channel pattern exists and is enabled:
-
-```bash
-npx @insforge/cli db query "SELECT pattern, description, enabled FROM realtime.channels"
-```
-
-3. If access is restricted, check RLS on realtime tables:
-
-```bash
-npx @insforge/cli db policies
-```
-
-4. If the issue is widespread (all channels affected), the underlying cause is likely backend-wide — switch to `insforge-backend-advisor` for a system health audit.
-
-**Information gathered**: WebSocket error logs, channel configuration, realtime RLS policies.
-
----
-
-## Scenario 6: Edge Function Deploy Failure
-
-**Symptoms**: `functions deploy <slug>` command fails, function not appearing in the list after deploy.
-
-**Steps**:
-
-1. Re-run the deploy command and capture the error output:
-
-```bash
-npx @insforge/cli functions deploy <slug>
-```
-
-2. Check deployment-related errors:
-
-```bash
-npx @insforge/cli logs function-deploy.logs --limit 50
-```
-
-3. Verify whether the function exists in the list:
-
-```bash
-npx @insforge/cli functions list
-```
-
-**Information gathered**: Deploy command error output, function deployment logs, function list status, backend error logs.
-
----
-
-## Scenario 7: Frontend (Vercel) Deploy Failure
-
-**Symptoms**: `deployments deploy` command fails, deployment status shows error, Vercel build errors.
-
-**Steps**:
-
-1. Check recent deployment attempts:
-
-```bash
-npx @insforge/cli deployments list
-```
-
-2. Get the status and error details for the failed deployment:
-
-```bash
-npx @insforge/cli deployments status <id> --json
-```
-
-The `--json` output includes a `metadata` object with Vercel-specific context: `target`, `fileCount`, `projectId`, `startedAt`, `envVarKeys`, `webhookEventType` (e.g., `deployment.succeeded` or `deployment.error`), etc. This metadata captures the full deployment context and can be used for debugging or AI-assisted investigation.
-
-3. Verify the local build succeeds before investigating further:
-
-```bash
-npm run build
-```
-
-**Information gathered**: Deployment history, deployment metadata (Vercel context, status, webhook events), local build output, backend deployment API logs.
-
----
-
-## Command Quick Reference
-
-### Logs
-
-```bash
-npx @insforge/cli logs <source> [--limit <n>]
-```
-
-| Source | Description |
-|--------|-------------|
-| `insforge.logs` | Main backend logs |
-| `postgREST.logs` | PostgREST API layer logs |
-| `postgres.logs` | PostgreSQL database logs |
-| `function.logs` | Edge function execution logs |
-| `function-deploy.logs` | Edge function deployment logs |
-
-Source names are case-insensitive.
-
-### Diagnostics
-
-```bash
-# Full health report (all checks)
-npx @insforge/cli diagnose
-
-# AI-powered diagnosis from a natural-language problem description
-# Returns diagnosis + suggested solutions
-npx @insforge/cli diagnose --ai "<issue description>"
-
-# EC2 instance metrics (CPU, memory, disk, network)
-npx @insforge/cli diagnose metrics [--range 1h|6h|24h|7d] [--metrics <list>]
-
-# Database health checks
-npx @insforge/cli diagnose db [--check <checks>]
-# checks: connections, slow-queries, bloat, size, index-usage, locks, cache-hit (default: all)
-
-# Aggregate error logs from all sources
-npx @insforge/cli diagnose logs [--source <name>] [--limit <n>]
-```
-
-For `diagnose advisor` and proactive backend audits, see `insforge-backend-advisor`.
-
-### Supporting Commands
-
-```bash
-# Project metadata (auth config, tables, buckets, functions, etc.)
-npx @insforge/cli metadata --json
-
-# Edge functions
-npx @insforge/cli functions list
-npx @insforge/cli functions code <slug>
-
-# Secrets
-npx @insforge/cli secrets list [--all]
-npx @insforge/cli secrets get <key>
-npx @insforge/cli secrets add <key> <value> [--reserved] [--expires <ISO date>]
-
-# Database
-npx @insforge/cli db policies
-npx @insforge/cli db query "<sql>"
-
-# Deployments
-npx @insforge/cli deployments list
-npx @insforge/cli deployments status <id> --json
-```
+1. **ai-assisted** (`diagnose --ai "<error or URL>"`) — get a starting hypothesis.
+2. **Verify** by re-checking the primitives the diagnosis names. Trust the primitive observations over the suggestion.
