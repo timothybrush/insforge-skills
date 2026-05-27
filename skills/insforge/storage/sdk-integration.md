@@ -2,7 +2,7 @@
 
 Use InsForge SDK to upload, download, and manage files in your frontend application.
 
-> **Recommended path.** Prefer `@insforge/sdk` for all storage work — it is the supported default for app code (browser and server), handles auth/session scoping, and avoids handing out long-lived project-admin credentials. Reach for the [S3-compatible gateway](./s3-gateway.md) only when the consumer is existing S3 tooling (CI pipelines running `aws s3 cp` / `rclone sync`, Terraform, backup/log shippers) where adopting the SDK would be impractical.
+> **Recommended path.** Prefer `@insforge/sdk` for all storage work — it is the supported default for app code (browser and server), handles auth/session scoping, and keeps project-admin credentials in backend/admin tooling. Reach for the [S3-compatible gateway](./s3-gateway.md) only when the consumer is existing S3 tooling (CI pipelines running `aws s3 cp` / `rclone sync`, Terraform, backup/log shippers) where adopting the SDK would be impractical.
 
 ## Setup
 
@@ -16,6 +16,16 @@ const insforge = createClient({
   anonKey: process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY   // adjust prefix for your framework
 })
 ```
+
+For Next.js / SSR Client Components, use the SSR browser client so direct browser uploads have the user's access token:
+
+```typescript
+import { createBrowserClient } from '@insforge/sdk/ssr'
+
+const insforge = createBrowserClient()
+```
+
+Use `createBrowserClient()` for authenticated browser uploads. It reads the browser-readable `insforge_access_token` cookie and refreshes through `/api/auth/refresh`; the refresh token remains httpOnly.
 
 ## Upload File
 
@@ -83,6 +93,7 @@ await insforge.database
 - **Always save both `url` AND `key`**: The URL is for display; the key is required for download/delete operations
 - All methods return `{ data, error }` - always check for errors
 - Bucket must exist before uploading (create via admin API)
+- In Next.js / SSR apps, direct browser uploads should use `createBrowserClient()` from `@insforge/sdk/ssr` so Storage RLS sees the signed-in user
 
 ---
 
@@ -98,11 +109,12 @@ await insforge.database
 
 ## Common Mistakes
 
-| Mistake | Solution |
-|---------|----------|
-| ❌ Uploading without checking bucket exists | ✅ Verify bucket via admin API first |
-| ❌ Only saving URL, not key | ✅ Save both `data.url` and `data.key` to database |
-| ❌ Using URL for download/delete | ✅ Use the stored `key` for these operations |
+| Mistake | Fix |
+|---------|-----|
+| Uploading before the bucket exists | Verify the bucket via admin API before uploading |
+| Saving only the returned URL | Save both `data.url` and `data.key` |
+| Using the URL for download/delete operations | Use the stored `key` |
+| Creating a plain browser client in SSR Client Components | Use `createBrowserClient()` so access refresh flows through `/api/auth/refresh` and the refresh token remains httpOnly |
 
 ## Recommended Workflow
 

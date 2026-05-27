@@ -162,7 +162,7 @@ skills/
 ### Documentation Pattern
 
 - **`sdk-integration.md`**: How to use app-facing SDKs/APIs in application code.
-- **AI capability guides**: `ai/overview.md` links to smaller OpenRouter-focused guides for chat completions, image generation, video generation, audio, embeddings/RAG, and model discovery. The old `insforge.ai` module is only a deprecated fallback.
+- **AI capability guides**: `ai/overview.md` links to smaller OpenRouter-focused guides for chat completions, image generation, video generation, audio, embeddings/RAG, and model discovery.
 - **`backend-configuration.md`**: How to configure InsForge backend via HTTP API
 
 ## Contributing

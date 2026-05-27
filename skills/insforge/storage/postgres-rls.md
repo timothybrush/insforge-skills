@@ -19,7 +19,7 @@ The `auth.jwt()` helper returns the caller's full claims as `jsonb`. Most polici
 
 ### What ships by default
 
-- **Fresh installs**: zero policies on `storage.objects`. The table has RLS enabled but nothing matches, so end users can't do anything until you write a policy. Same shape Supabase ships.
+- **Fresh installs**: zero policies on `storage.objects`. The table has RLS enabled but nothing matches, so end users can't do anything until you write a policy.
 - **Existing projects** (any rows in `storage.buckets` at migration time): the owner-only set below is auto-installed so the upgrade does not silently break end-user uploads and reads.
 
 ### Managed Storage RLS

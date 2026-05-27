@@ -29,7 +29,7 @@ Before using the SDK, create a `.env` file (or `.env.local` for Next.js) in your
 #### How to get your URL and anon key
 
 1. **Ensure the project is linked.** Check for `.insforge/project.json` in the project root.
-   - If it doesn't exist, run `npx @insforge/cli link` (existing project) or `npx @insforge/cli create` (new project) to generate it.
+   - Generate it with `npx @insforge/cli link` for an existing project or `npx @insforge/cli create` for a new project.
 
 2. **Get the anon key** via the CLI:
    ```bash
@@ -40,7 +40,7 @@ Before using the SDK, create a `.env` file (or `.env.local` for Next.js) in your
 
 4. **Write both values** to the `.env` file using the correct framework prefix (see table below).
 
-> **Important:** Use the anon key for SDK clients, including SSR. Use the API key only for privileged backend operations that need admin/service access; it is a full-access admin key, equivalent to a service role key on other platforms.
+> **Important:** Use the anon key for user-scoped SDK clients, including SSR. For privileged server-only app code that needs admin/service access, use `createAdminClient({ apiKey })`; the API key is a full-access admin key, equivalent to a service role key on other platforms.
 
 Use the correct environment variable prefix and access pattern for your framework:
 
@@ -59,7 +59,7 @@ NEXT_PUBLIC_INSFORGE_URL=https://your-appkey.us-east.insforge.app
 NEXT_PUBLIC_INSFORGE_ANON_KEY=eyJhbGciOiJIUzI1NiIs...
 ```
 
-> **Important:** Never commit `.env` files to version control. Add `.env`, `.env.local`, and `.env*.local` to your `.gitignore` (keep `.env.example` for documenting required variables).
+> **Important:** Keep `.env` files local. Add `.env`, `.env.local`, and `.env*.local` to your `.gitignore` and keep `.env.example` for documenting required variables.
 
 ### 3. Initialize the client
 
@@ -76,6 +76,17 @@ const insforge = createClient({
 const insforge = createClient({
   baseUrl: import.meta.env.VITE_INSFORGE_URL,
   anonKey: import.meta.env.VITE_INSFORGE_ANON_KEY
+})
+```
+
+For trusted server-only code that needs project-admin access:
+
+```javascript
+import { createAdminClient } from '@insforge/sdk'
+
+const admin = createAdminClient({
+  baseUrl: process.env.INSFORGE_URL,
+  apiKey: process.env.INSFORGE_API_KEY
 })
 ```
 
@@ -100,7 +111,7 @@ const insforge = createClient({
 | **Auth** | Sign up/in, OAuth, sessions, profiles, password reset |
 | **Storage** | Upload, download, delete files; S3-compatible gateway for CI / backup tooling; write RLS policies for buckets |
 | **Functions** | Invoke edge functions |
-| **AI** | OpenRouter AI calls for chat, images, video, audio, embeddings, and model discovery; deprecated InsForge SDK fallback |
+| **AI** | OpenRouter AI calls for chat, images, video, audio, embeddings, and model discovery |
 | **Email** | Send custom transactional HTML emails (welcome, newsletter, notifications) |
 | **Payments** | Stripe Checkout Sessions, subscriptions, and Billing Portal redirects |
 | **Real-time** | Connect, subscribe, publish events, and track presence snapshots plus join/leave deltas |
@@ -138,7 +149,7 @@ the **insforge-cli** skill's Configuration section.
 
 ### Risky backend changes? Use a branch first
 
-When a code change in this skill depends on a **schema migration**, **new RLS policy**, **OAuth provider config change**, or any other backend change that could brick prod, create a backend branch first instead of editing the live project. Branches share `JWT_SECRET` (existing user JWTs keep working) but get a fresh database + EC2 + `API_KEY` / `ANON_KEY`, so you can test the SDK + backend change end-to-end in isolation.
+When a code change in this skill depends on a **schema migration**, **new RLS policy**, **OAuth provider config change**, or any other backend change that affects prod behavior, create a backend branch first. Branches share `JWT_SECRET` (existing user JWTs keep working) but get a fresh database + EC2 + `API_KEY` / `ANON_KEY`, so you can test the SDK + backend change end-to-end in isolation.
 
 The full branching workflow lives in the **insforge-cli** skill — see [branch](../insforge-cli/references/branch.md) for the decision guide and lifecycle commands. Typical loop:
 
@@ -150,7 +161,7 @@ npx @insforge/cli branch merge feat-x --dry-run     # review SQL
 npx @insforge/cli branch merge feat-x               # apply to parent
 ```
 
-> ⚠ **After `branch create` or `branch switch`**, the SDK's `INSFORGE_URL` and `INSFORGE_ANON_KEY` change. **Restart your dev server** (or re-source `.env`) so the SDK starts talking to the branch backend. If you don't, the SDK will silently keep hitting parent — the #1 cause of "I switched but my changes aren't showing up".
+> ⚠ **After `branch create` or `branch switch`**, update the app's InsForge URL and anon-key env values, then **restart your dev server** (or re-source `.env`) so the SDK talks to the selected branch backend.
 
 ## SDK Quick Reference
 
@@ -162,22 +173,22 @@ All SDK methods return `{ data, error }`.
 | `insforge.auth` | `.signUp()`, `.signInWithPassword()`, `.signInWithOAuth()`, `.signOut()`, `.getCurrentUser()` |
 | `insforge.storage` | `.from().upload()`, `.uploadAuto()`, `.download()`, `.remove()` |
 | `insforge.functions` | `.invoke()` |
-| `insforge.ai` | Deprecated fallback only: `.chat.completions.create()`, `.images.generate()`, `.embeddings.create()` |
+| `insforge.ai` | `.chat.completions.create()`, `.images.generate()`, `.embeddings.create()` |
 | `insforge.realtime` | `.connect()`, `.subscribe()`, `.publish()`, `.on()`, `.disconnect()` |
 | `insforge.emails` | `.send({ to, subject, html, cc?, bcc?, from?, replyTo? })` |
 | `insforge.payments` | `.createCheckoutSession()`, `.createCustomerPortalSession()` |
 
 ## Important Notes
 
-- **Database inserts require array format**: `insert([{...}])` not `insert({...})`
-- **Next.js / SSR auth**: Use `createClient({ isServerMode: true })`, keep tokens in httpOnly cookies, and perform auth flows on the server. See [auth/sdk-integration.md](auth/sdk-integration.md)
+- **Database inserts require array format**: `insert([{...}])`
+- **Next.js / SSR auth**: Use `@insforge/sdk/ssr` helpers (`createBrowserClient`, `createServerClient`, `createRefreshAuthRouter`, `updateSession`). Keep the refresh token httpOnly and let the browser read the short-lived access token for Storage/Realtime. See [auth/ssr-integration.md](auth/ssr-integration.md)
 - **Storage**: Save both `url` AND `key` to database for download/delete operations
-- **Functions invoke URL**: `/functions/{slug}` (without `/api` prefix)
-- **Email — no SMTP, no third-party packages**: Auth emails (signup verification, password reset, magic links, invites) ship on **every plan**. Custom email via `insforge.emails.send()` ships on **every paid plan**. **Never install `nodemailer` / `resend` / `sendgrid` / `mailgun` / `postmark` or ask for SMTP credentials** — the platform handles delivery. Custom sender domain is dashboard config, not `package.json`. See [email/sdk-integration.md](email/sdk-integration.md).
+- **Functions invoke URL**: `/functions/{slug}`
+- **Email delivery**: Auth emails (signup verification, password reset, magic links, invites) ship on **every plan**. Custom email via `insforge.emails.send()` ships on **every paid plan**. Use the platform-managed delivery path; custom sender domain is dashboard config. See [email/sdk-integration.md](email/sdk-integration.md).
 - **Payments**: Configure Stripe keys/catalog with `npx @insforge/cli payments ...` first; frontend code only creates Checkout/Portal sessions.
 - **Payment RLS**: Before subscription checkout or Billing Portal UI, add app-specific RLS on `payments.checkout_sessions` and `payments.customer_portal_sessions`. Checkout creation needs `INSERT`; checkout requests with `idempotencyKey` also need matching `SELECT` on `payments.checkout_sessions`.
-- **Use Tailwind CSS v3.4** (do not upgrade to v4)
+- **Use Tailwind CSS v3.4**
 - **Always local build before deploy**: Prevents wasted build resources and faster debugging
-- **Deprecated packages**: `@insforge/react`, `@insforge/nextjs`, and `@insforge/react-router` are **deprecated**. Do NOT install or use them. Use `@insforge/sdk` directly for all features including authentication.
+- **SDK package**: Use `@insforge/sdk` directly for all features including authentication.
 - **Deployment**: Include a `vercel.json` in the project root for SPA routing (React, React Router apps). The `download-template` tool includes this automatically.
-- **Branching for risky backend changes**: If your SDK code depends on a new schema, RLS policy, or auth config change, create a branch via `npx @insforge/cli branch create` first — see the **insforge-cli** skill's [branch](../insforge-cli/references/branch.md) reference. After `branch create` / `branch switch`, **restart the dev server** so the SDK picks up the new `INSFORGE_URL` / `INSFORGE_ANON_KEY`.
+- **Branching for risky backend changes**: If your SDK code depends on a new schema, RLS policy, or auth config change, create a branch via `npx @insforge/cli branch create` first — see the **insforge-cli** skill's [branch](../insforge-cli/references/branch.md) reference. After `branch create` / `branch switch`, update the app's InsForge URL and anon-key env values, then **restart the dev server**.

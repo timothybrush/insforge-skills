@@ -32,8 +32,9 @@ For non-standard env files, use `--env-file <path>`. If the command is
 unavailable, ask the user to upgrade `@insforge/cli` or copy the key from the
 InsForge dashboard Model Gateway.
 
-Keep `OPENROUTER_API_KEY` server-side only. Never expose it through
-`NEXT_PUBLIC_*`, `VITE_*`, `PUBLIC_*`, or `REACT_APP_*`.
+Keep `OPENROUTER_API_KEY` server-side only. Browser-visible env prefixes such
+as `NEXT_PUBLIC_*`, `VITE_*`, `PUBLIC_*`, and `REACT_APP_*` are for non-secret
+values.
 
 Install the OpenAI SDK when using chat completions or embeddings:
 
@@ -51,8 +52,7 @@ export const openai = new OpenAI({
 ```
 
 For browser apps, create a server route, server action, function, or backend
-endpoint that calls OpenRouter. The browser should call your server, not
-OpenRouter directly.
+endpoint that calls OpenRouter. Have the browser call your server endpoint.
 
 ## Capability Guides
 
@@ -76,12 +76,6 @@ OpenRouter directly.
    Use OpenRouter APIs for model calls.
 5. Check model capabilities through OpenRouter before using image, video,
    embeddings, or special parameters.
-
-## Deprecated Fallback
-
-The legacy `insforge.ai` SDK module may still exist in older apps. Use it only
-when maintaining existing code or when the user explicitly asks to preserve the
-old integration. For new features, use OpenRouter directly.
 
 ## Common Mistakes
 

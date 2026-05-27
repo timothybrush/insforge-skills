@@ -15,6 +15,16 @@ const insforge = createClient({
 })
 ```
 
+For Next.js / SSR Client Components, use `@insforge/sdk/ssr` so the browser WebSocket can authenticate with the access-token cookie:
+
+```typescript
+import { createBrowserClient } from '@insforge/sdk/ssr'
+
+const insforge = createBrowserClient()
+```
+
+Use `createBrowserClient()` for authenticated browser Realtime connections. It reads `insforge_access_token`, refreshes through `/api/auth/refresh`, calls `setAccessToken()` internally, and Realtime reconnects with the new token.
+
 ## Backend Setup
 
 If the task needs channel patterns, database triggers, or channel/message RLS, use the **insforge-cli** skill's [realtime](../../insforge-cli/references/realtime.md) reference. This SDK guide covers frontend connection, subscription, publishing, and presence handling.
@@ -69,7 +79,7 @@ Use this snapshot to seed local participant state before listening for live delt
 - `presenceId` is the stable key for a member: user ID for `type: 'user'`, socket ID for `type: 'anonymous'`
 - Authenticated users are deduplicated into one logical member across multiple sockets or tabs
 - Anonymous connections are tracked per socket, so multiple tabs show up as separate members
-- Do not wait for your own `presence:join` event after subscribing; your own presence is already represented in the subscribe response
+- Initialize the current user's presence from the `subscribe()` response; your own presence is already represented there
 
 ### Listen for Events
 
@@ -238,11 +248,11 @@ await insforge.realtime.publish(channel, 'viewed', {
 4. **Gate user-dependent side effects on auth hydration**
    - Webhook-backed events can arrive before a cold-load `getCurrentUser()` refresh finishes
    - If an event branches on the current user, wait for `authLoading === false` before running it or flipping a "first event wins" guard
-   - See [../auth/sdk-integration.md#dont-fire-user-dependent-side-effects-during-auth-loading](../auth/sdk-integration.md#dont-fire-user-dependent-side-effects-during-auth-loading)
+   - See [../auth/sdk-integration.md#gate-user-dependent-side-effects-during-auth-loading](../auth/sdk-integration.md#gate-user-dependent-side-effects-during-auth-loading)
 
 5. **Design for presence visibility rules**
    - Authenticated subscribers expose their user ID through `presenceId` to other channel members
-   - Avoid presence-enabled channels when subscriber identity should stay opaque
+   - Use non-presence channels when subscriber identity should stay opaque
 
 6. **Clean up subscriptions**
    - Unsubscribe from channels when no longer needed
@@ -260,11 +270,11 @@ await insforge.realtime.publish(channel, 'viewed', {
 
 ## Common Mistakes
 
-| Mistake | Solution |
-|---------|----------|
-| ❌ Subscribing without channel pattern configured | ✅ Finish backend setup first |
-| ❌ Waiting for your own `presence:join` event | ✅ Initialize local presence state from `subscribe()` response |
-| ❌ Assuming presence is global or durable | ✅ Treat presence as single-instance, in-memory state and resubscribe after reconnects |
-| ❌ Not handling connection errors | ✅ Listen for `connect_error` and `disconnect` events |
-| ❌ Forgetting to unsubscribe | ✅ Clean up subscriptions on component unmount |
-| ❌ Publishing without subscribing | ✅ Subscribe to channel before publishing |
+| Mistake | Fix |
+|---------|-----|
+| Subscribing before backend channel setup exists | Configure channel patterns, database triggers, and RLS before subscribing |
+| Waiting for a self `presence:join` event | Initialize local presence state from `subscribe()` response |
+| Treating presence as durable/global state | Treat presence as single-instance, in-memory state and resubscribe after reconnects |
+| Missing connection error handling | Listen for `connect_error` and `disconnect` events |
+| Leaving subscriptions active after unmount | Unsubscribe on component unmount |
+| Publishing before subscribing | Subscribe to the channel before publishing |

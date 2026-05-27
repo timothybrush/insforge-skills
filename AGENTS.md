@@ -94,5 +94,6 @@ When working with InsForge skills, remember:
 1. **Backend First**: Most features require backend configuration before SDK integration
 2. **Metadata Endpoint**: Always fetch `/api/metadata` before making changes
 3. **Auth References**: Use `auth.users(id)` for user foreign keys, `auth.uid()` in RLS policies
-4. **Array Inserts**: Database inserts require array format: `insert([{...}])`
-5. **Storage Keys**: Save both `url` and `key` for storage operations
+4. **Auth Profile Metadata**: `auth.users.profile` is JSONB; read `profile->>'name'` / `profile->>'avatar_url'` in triggers.
+5. **Array Inserts**: Database inserts require array format: `insert([{...}])`
+6. **Storage Keys**: Save both `url` and `key` for storage operations

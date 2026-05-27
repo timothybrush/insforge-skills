@@ -2,9 +2,9 @@
 
 User authentication, registration, and session management via `insforge.auth`.
 
-> **⚠️ Deprecated Packages**: The packages `@insforge/react`, `@insforge/nextjs`, and `@insforge/react-router` are **deprecated** and should NOT be used. Use `@insforge/sdk` directly for all authentication flows. Build your own auth UI components using the SDK methods documented below.
+> **Package choice**: Use `@insforge/sdk` directly for authentication flows. Build auth UI components with the SDK methods documented below.
 
-> **📧 No SMTP for auth emails.** Signup verification, password reset, magic links, and invites ship on **every plan** (free included) — sent by the InsForge platform. **Never install `nodemailer` / `resend` / `sendgrid` / `mailgun` / `postmark` or ask the user for SMTP credentials.** For custom transactional email, see [email/sdk-integration.md](../email/sdk-integration.md) — also no SMTP.
+> **Auth email delivery is built in.** Signup verification, password reset, magic links, and invites ship on **every plan** (free included) through the InsForge platform. For custom transactional email, see [email/sdk-integration.md](../email/sdk-integration.md).
 
 ## Setup
 
@@ -21,7 +21,7 @@ const insforge = createClient({
 
 ## SSR / Server-Rendered Apps
 
-For Next.js, Remix, SvelteKit, Nuxt server routes, or any other SSR setup, use server mode and server-managed cookies. See [ssr-integration.md](ssr-integration.md) for the full pattern and minimal examples.
+For Next.js, Remix, SvelteKit, Nuxt server routes, or any other SSR setup, use `@insforge/sdk/ssr` helpers. See [ssr-integration.md](ssr-integration.md) for the full pattern and minimal examples.
 
 ## Sign Up (Complete Flow)
 
@@ -103,14 +103,14 @@ if (error) {
 
 OAuth uses PKCE. The SDK handles code generation, redirect, and token exchange automatically in the browser.
 
-### Two redirect URLs — don't confuse them
+### Two redirect URLs
 
 | URL | Points to | Where to configure |
 |-----|-----------|-------------------|
 | OAuth provider callback | InsForge backend (`https://<project>.insforge.app/api/auth/oauth/<provider>/callback`) | Google Console, GitHub OAuth app, etc. |
 | `redirectTo` | **Your app** (`https://yourapp.com/auth/callback`) | Passed in `signInWithOAuth()` |
 
-`redirectTo` is where the user lands after auth. The backend appends `?insforge_code=<code>` to it. If this points to the backend instead of your app, you get `Cannot GET /auth/callback`.
+`redirectTo` is where the user lands after auth. The backend appends `?insforge_code=<code>` to it. Set it to a page where your app initializes the SDK or handles the server callback.
 
 ### SPA (browser) — fully automatic
 
@@ -121,11 +121,11 @@ await insforge.auth.signInWithOAuth({
 })
 ```
 
-The SDK constructor auto-detects `insforge_code` in the URL, exchanges it for a session, and cleans the URL. No callback handler needed — just ensure the SDK is initialized on the `redirectTo` page.
+The SDK constructor auto-detects `insforge_code` in the URL, exchanges it for a session, and cleans the URL. Initialize the SDK on the `redirectTo` page.
 
 ### SSR (Next.js) — manual exchange required
 
-The browser auto-detection doesn't work server-side (`sessionStorage` unavailable, `detectAuthCallback()` skips in server mode). Use `skipBrowserRedirect: true` and handle the exchange in a Next.js API route. See [ssr-integration.md](ssr-integration.md) for the full implementation.
+The browser auto-detection is for SPA flows. In SSR apps, use `skipBrowserRedirect: true` and exchange the OAuth code in a Route Handler so the refresh token can be written as an httpOnly cookie. See [ssr-integration.md](ssr-integration.md) for the full implementation.
 
 ```javascript
 const { data } = await insforge.auth.signInWithOAuth({
@@ -163,13 +163,15 @@ if (data.user) {
 
 For browser apps, call `getCurrentUser()` during startup. The SDK will use the httpOnly refresh cookie automatically when it can refresh the session.
 
-For `isServerMode: true`, call `refreshSession({ refreshToken })` explicitly when you need to refresh an expired access token.
+For SSR apps, use `createRefreshAuthRouter()` / `refreshAuth()` from `@insforge/sdk/ssr` to refresh through your app route.
 
 ### Cold loads & external redirects
 
-In browser apps, the access token is stored in memory only. On a cold page load, `getCurrentUser()` starts with no in-memory access token, so the SDK rehydrates the session by calling `POST /api/auth/refresh` with the httpOnly refresh cookie and the JS-readable `insforge_csrf_token` cookie/header flow. During that network round-trip, `user` is temporarily `null`.
+In SPA browser apps using the root `@insforge/sdk` client, the access token is stored in memory only. On a cold page load, `getCurrentUser()` starts with no in-memory access token, so the SDK rehydrates the session by calling the backend refresh endpoint with the httpOnly refresh cookie and the JS-readable `insforge_csrf_token` cookie/header flow. During that network round-trip, `user` is temporarily `null`.
 
-Any auth wrapper or hook should expose both `user` and `loading`, not just `user`:
+In SSR browser clients created with `createBrowserClient()` from `@insforge/sdk/ssr`, the access token is read from the `insforge_access_token` cookie and refreshed through your app's `/api/auth/refresh` route.
+
+Any auth wrapper or hook should expose both `user` and `loading`:
 
 ```tsx
 import { createContext, useContext, useEffect, useState } from 'react'
@@ -230,7 +232,7 @@ This matters most when the user lands back in your app after an external redirec
 - Password-reset link landing
 - Email-verification link landing
 
-### Don't fire user-dependent side effects during auth loading
+### Gate user-dependent side effects during auth loading
 
 If a mount-time effect branches on the current user, guard the user-dependent work until `loading === false`. This is especially important for code paths that do one thing for signed-in users and another for guests.
 
@@ -262,9 +264,13 @@ useEffect(() => {
 }, [loading, shouldRunAction, userId])
 ```
 
-Webhook-backed Realtime flows can complete before the cold-load auth refresh finishes, especially after Stripe Checkout, Customer Portal, OAuth, password-reset, or email-verification redirects. If you use a `cleared.current` or other "first event wins" guard, do not flip it until `loading === false` and the user-dependent work has actually succeeded.
+Webhook-backed Realtime flows can complete before the cold-load auth refresh finishes, especially after Stripe Checkout, Customer Portal, OAuth, password-reset, or email-verification redirects. If you use a `cleared.current` or other "first event wins" guard, flip it after `loading === false` and the user-dependent work has actually succeeded.
 
 ## Profile Management
+
+In SQL triggers and migrations, user profile metadata lives in
+`auth.users.profile` JSONB. Read common values with `NEW.profile->>'name'` and
+`NEW.profile->>'avatar_url'`.
 
 ```javascript
 // Get any user's public profile
@@ -354,8 +360,8 @@ Only render the reset form when `insforge_status=ready` and `token` is present.
 
 ## Important Notes
 
-- **Web vs Mobile**: Web uses httpOnly cookies + CSRF; mobile/desktop returns refreshToken in response
-- **SSR apps should use server mode**: For Next.js and similar SSR frameworks, create the SDK client on the server with `isServerMode: true` and manage cookies yourself. See [ssr-integration.md](ssr-integration.md)
+- **SPA Web vs Mobile**: Root browser SDK flows use httpOnly refresh cookies + CSRF; mobile/desktop returns refreshToken in response
+- **SSR apps should use `@insforge/sdk/ssr`**: For Next.js and similar SSR frameworks, use the SSR helpers for client creation, refresh routes, Proxy/Middleware session updates, and auth cookies. See [ssr-integration.md](ssr-integration.md)
 - All methods return `{ data, error }` — always check for errors
 - OAuth uses PKCE flow for security
 
@@ -372,13 +378,13 @@ Only render the reset form when `insforge_status=ready` and `token` is present.
    - After calling `signUp()`, if `requireEmailVerification` is true, branch on `verifyEmailMethod`
    - For `"code"`, switch the UI to show a 6-digit code input on the **same page**
    - For `"link"`, pass `redirectTo` to `signUp()` and show a "check your email" state
-   - Do NOT navigate to the app until verification is completed
+   - Keep the user in the verification flow until verification is completed
    - Recommended verification `redirectTo`: your sign-in page
    - `verifyEmail()` automatically saves the session only for the code flow
 
-3. **Only implement OAuth for configured providers**
+3. **Render OAuth from configured providers**
    - Check `oAuthProviders` array in config
-   - The array contains only enabled provider names (e.g., `["google", "github"]`)
+   - The array contains enabled provider names (e.g., `["google", "github"]`)
 
 4. **Handle the sign-up response correctly**
    ```javascript
@@ -387,32 +393,34 @@ Only render the reset form when `insforge_status=ready` and `token` is present.
    if (error) {
      // Show error message to user
    } else if (data?.requireEmailVerification) {
-     // Usually: switch UI to show 6-digit code input — do NOT navigate away
+     // Usually: switch UI to show 6-digit code input and keep the user in the verification flow
      // If verifyEmailMethod === "link", show a "check your email" state instead
    } else if (data?.accessToken) {
      // No verification needed — user is signed in, navigate to app
    }
    ```
 
-5. **Use server mode for SSR auth**
-   - For Next.js or other SSR frameworks, perform auth mutations on the server
-   - Keep tokens in httpOnly cookies instead of exposing them to client components
-   - Pass the access token into `createClient({ edgeFunctionToken })` for authenticated server-side requests
+5. **Use `@insforge/sdk/ssr` for SSR auth**
+   - For Next.js or other SSR frameworks, perform auth mutations where cookies can be written
+   - Keep `insforge_refresh_token` httpOnly and server-owned
+   - Let `insforge_access_token` be browser-readable so Storage and Realtime can authenticate from Client Components
+   - Use `createServerClient()` for Server Components / Route Handlers and `createBrowserClient()` for Client Components
+   - Add `/api/auth/refresh` with `createRefreshAuthRouter()` and use `updateSession()` in Proxy/Middleware
    - Use [ssr-integration.md](ssr-integration.md) as the reference implementation
 
 ## Common Mistakes
 
-| Mistake | Solution |
-|---------|----------|
-| Navigating to dashboard/home after sign-up when verification is required | Stay in the verification flow and branch on `verifyEmailMethod` instead of navigating to the app |
-| Skipping email verification flow entirely | Check `requireEmailVerification` in sign-up response and implement the verification step |
-| Forgetting `redirectTo` for link flows | When the backend config uses `"link"`, pass the app URL in the request and make sure it is in `allowedRedirectUrls` |
-| Building link-based UI when code is configured | Check `verifyEmailMethod` to build the correct UI |
-| Treating link verification like code verification | For link verification, handle the redirect result and send the user to sign in instead of calling `verifyEmail()` with a token |
-| Calling `signInWithPassword` after code-based `verifyEmail` | `verifyEmail()` auto-saves the session for the code flow — no separate sign-in call needed |
-| Implementing OAuth without checking config | Only show buttons for providers in `oAuthProviders` array |
-| Hardcoding OAuth providers | Dynamically show based on `oAuthProviders` array |
-| Using the browser SDK pattern inside SSR auth routes | In SSR frameworks, create a server-mode client and manage httpOnly cookies on the server |
+| Mistake | Fix |
+|---------|-----|
+| Navigating to dashboard/home while verification is still required | Stay in the verification flow and branch on `verifyEmailMethod` |
+| Skipping the email verification step | Check `requireEmailVerification` in the sign-up response and implement the verification step |
+| Missing `redirectTo` for link flows | Pass the app URL as `redirectTo` and include it in `allowedRedirectUrls` |
+| Building the wrong verification UI | Build the UI from `verifyEmailMethod` |
+| Treating link verification like code verification | Handle the redirect result and send the user to sign in |
+| Signing in again after code-based `verifyEmail()` | Use the session returned by `verifyEmail()` |
+| Hardcoding OAuth providers | Render providers from `oAuthProviders` |
+| Handling SSR auth like a browser-only flow | Use `@insforge/sdk/ssr` helpers and write cookies from Route Handlers, Server Actions, or Proxy/Middleware |
+| Passing `apiKey` to `createClient()` | Use `createAdminClient({ apiKey })` in trusted server-only code |
 
 ## Conditional Implementation Guide
 
@@ -441,7 +449,7 @@ if (data?.requireEmailVerification) {
 // e.g., ["google", "github"]
 const enabledProviders = authConfig.oAuthProviders
 
-// Show OAuth buttons only for enabled providers:
+// Show OAuth buttons from enabled providers:
 if (enabledProviders.includes('google')) {
   // Show Google login button
 }
@@ -458,7 +466,7 @@ if (enabledProviders.includes('github')) {
 3. Build appropriate UI      → Code input vs magic link, OAuth buttons
 4. Implement sign-up         → Handle requireEmailVerification response
 5. Implement verification    → Code input or redirectTo-based link flow
-6. Implement OAuth           → Only for providers in oAuthProviders array
+6. Implement OAuth           → Use providers from oAuthProviders
 7. Implement password reset  → Based on resetPasswordMethod (code vs link)
 ```
 
@@ -471,7 +479,7 @@ Based on auth config, implement:
   - [ ] 6-digit code input (if `verifyEmailMethod` is "code")
   - [ ] "Check your email" state plus sign-in-page `redirectTo` handling (if `verifyEmailMethod` is "link")
 - [ ] Sign in form
-- [ ] OAuth buttons (only for enabled providers)
+- [ ] OAuth buttons from enabled providers
 - [ ] Password reset flow
   - [ ] Code input (if `resetPasswordMethod` is "code")
   - [ ] App reset page using `redirectTo` (if `resetPasswordMethod` is "link")

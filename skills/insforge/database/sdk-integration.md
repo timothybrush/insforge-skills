@@ -15,6 +15,17 @@ const insforge = createClient({
 })
 ```
 
+For trusted server-only database work that needs project-admin access:
+
+```javascript
+import { createAdminClient } from '@insforge/sdk'
+
+const admin = createAdminClient({
+  baseUrl: process.env.INSFORGE_URL,
+  apiKey: process.env.INSFORGE_API_KEY
+})
+```
+
 ## CRUD Operations
 
 ### Select
@@ -127,6 +138,7 @@ When creating tables via `insforge db query` (CLI), use these built-in reference
 |-----------|-------------|
 | `auth.uid()` | Returns current authenticated user's UUID |
 | `auth.users(id)` | Reference to the built-in users table for foreign keys |
+| `auth.users.profile` | JSONB profile metadata; use `profile->>'name'` / `profile->>'avatar_url'` in auth triggers |
 | `system.update_updated_at()` | Built-in trigger function that auto-updates `updated_at` columns |
 
 ### Complete Example: Table with RLS and Triggers
@@ -147,9 +159,13 @@ ALTER TABLE posts ENABLE ROW LEVEL SECURITY;
 
 -- Policies (see postgres-rls.md for advanced patterns)
 CREATE POLICY "users_own_posts" ON posts
-  FOR ALL
+  FOR ALL TO authenticated
   USING (user_id = auth.uid())
   WITH CHECK (user_id = auth.uid());
+
+-- Allow authenticated SDK callers to reach the table; RLS still filters rows
+GRANT USAGE ON SCHEMA public TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON posts TO authenticated;
 
 -- Auto-update updated_at on every UPDATE
 CREATE TRIGGER posts_updated_at
