@@ -81,13 +81,13 @@ const insforge = createClient({
 
 ## Module Reference
 
-| Module | SDK Integration |
-|--------|-----------------|
+| Module | Integration Guide |
+|--------|-------------------|
 | **Database** | [database/sdk-integration.md](database/sdk-integration.md) |
 | **Auth** | [auth/sdk-integration.md](auth/sdk-integration.md) |
 | **Storage** | [storage/sdk-integration.md](storage/sdk-integration.md) |
 | **Functions** | [functions/sdk-integration.md](functions/sdk-integration.md) |
-| **AI** | [ai/sdk-integration.md](ai/sdk-integration.md) |
+| **AI** | [ai/overview.md](ai/overview.md) |
 | **Real-time** | [realtime/sdk-integration.md](realtime/sdk-integration.md) |
 | **Email** | [email/sdk-integration.md](email/sdk-integration.md) |
 | **Payments** | [payments/sdk-integration.md](payments/sdk-integration.md) |
@@ -100,7 +100,7 @@ const insforge = createClient({
 | **Auth** | Sign up/in, OAuth, sessions, profiles, password reset |
 | **Storage** | Upload, download, delete files; S3-compatible gateway for CI / backup tooling; write RLS policies for buckets |
 | **Functions** | Invoke edge functions |
-| **AI** | OpenRouter via OpenAI SDK, image/video generation, embeddings, deprecated InsForge SDK fallback |
+| **AI** | OpenRouter AI calls for chat, images, video, audio, embeddings, and model discovery; deprecated InsForge SDK fallback |
 | **Email** | Send custom transactional HTML emails (welcome, newsletter, notifications) |
 | **Payments** | Stripe Checkout Sessions, subscriptions, and Billing Portal redirects |
 | **Real-time** | Connect, subscribe, publish events, and track presence snapshots plus join/leave deltas |
@@ -113,7 +113,12 @@ const insforge = createClient({
 | [storage/s3-gateway.md](storage/s3-gateway.md) | Fallback path when the consumer is existing S3 tooling (aws CLI, AWS SDKs, rclone, Terraform, boto3) and adopting `@insforge/sdk` is impractical — covers endpoint/region setup, access-key management, path-style addressing, and supported vs. not-supported S3 operations. **Requires InsForge 2.0.9+.** **Prefer the SDK** ([storage/sdk-integration.md](storage/sdk-integration.md)) for app code |
 | [storage/postgres-rls.md](storage/postgres-rls.md) | Writing RLS policies for `storage.objects` — owner-only, public-read, path-scoped, team-shared, and the `NULL uploaded_by` caveat for mixed REST + S3 buckets |
 | [database/pgvector.md](database/pgvector.md) | Building semantic search, recommendations, or RAG — covers the `vector` extension, schema/dimensions, distance operators, HNSW/IVFFlat indexes, and RPC similarity search |
-| [ai/embeddings-and-rag.md](ai/embeddings-and-rag.md) | Generating embeddings through OpenRouter, storing them in pgvector, and wiring up a basic RAG pipeline with chat completions |
+| [ai/chat-completions.md](ai/chat-completions.md) | Text generation, structured answers, and streaming chat through OpenRouter |
+| [ai/image-generation.md](ai/image-generation.md) | Image generation/editing through OpenRouter, then durable storage in InsForge Storage |
+| [ai/video-generation.md](ai/video-generation.md) | Async OpenRouter video jobs, status polling, and storing generated media |
+| [ai/audio.md](ai/audio.md) | Speech-to-text, text-to-speech, and storing audio assets/transcripts with InsForge |
+| [ai/embeddings-and-rag.md](ai/embeddings-and-rag.md) | Generating embeddings through OpenRouter, storing them in pgvector, and wiring up a basic RAG pipeline |
+| [ai/models-list.md](ai/models-list.md) | Discovering OpenRouter model IDs, modalities, parameters, pricing, and embedding dimensions |
 | [payments](../insforge-cli/references/payments.md) | Configuring Stripe keys, syncing catalog, creating products/prices, webhooks, and portal RLS before app integration |
 
 ### Building Checkout for a New App
@@ -126,13 +131,10 @@ The real-time SDK is for frontend event handling and messaging. Configure channe
 
 ### Backend Configuration (Not Yet in CLI)
 
-These modules still require HTTP API calls because the CLI does not yet support them:
-
-| Module | Backend Configuration |
-|--------|----------------------|
-| **AI** | [ai/backend-configuration.md](ai/backend-configuration.md) |
-
-> Auth redirect URL allowlist is now managed via the CLI — use `npx @insforge/cli config export/plan/apply`. Other auth settings (password policy, OAuth providers, verification methods) still live on the dashboard. See the **insforge-cli** skill's Configuration section.
+Auth redirect URL allowlist is now managed via the CLI — use
+`npx @insforge/cli config export/plan/apply`. Other auth settings (password
+policy, OAuth providers, verification methods) still live on the dashboard. See
+the **insforge-cli** skill's Configuration section.
 
 ### Risky backend changes? Use a branch first
 

@@ -2,243 +2,152 @@
 
 Use OpenRouter embeddings through the OpenAI SDK, then store vectors in
 InsForge Postgres with pgvector. InsForge remains the database/vector store;
-OpenRouter provides the AI model gateway.
+OpenRouter provides the embedding model gateway.
 
-Schema, distance operators, and indexing: see
-[../database/pgvector.md](../database/pgvector.md).
+Official references:
 
-OpenRouter references:
-
-- [Embeddings](https://openrouter.ai/docs/api/reference/embeddings)
+- [OpenRouter embeddings](https://openrouter.ai/docs/api-reference/embeddings)
 - [OpenAI SDK with OpenRouter](https://openrouter.ai/docs/guides/community/openai-sdk)
-
----
+- [InsForge pgvector](../database/pgvector.md)
 
 ## Setup
 
-### Database
-
 Bring up the `vector` extension, `documents` table, and `match_documents` RPC
-via `npx @insforge/cli db query` -- see the Setup section of
-[../database/pgvector.md](../database/pgvector.md).
+via `npx @insforge/cli db query`; see [../database/pgvector.md](../database/pgvector.md).
 
-### AI Client
-
-Run the CLI setup from the linked app directory before adding embedding code:
+Run the AI key setup from the linked app directory:
 
 ```bash
 npx @insforge/cli ai setup
 ```
 
-This stores the active OpenRouter key server-side in `.env.local`:
+Initialize the OpenAI SDK with OpenRouter as shown in [overview.md](overview.md).
+Do not expose `OPENROUTER_API_KEY` to the browser. Generate embeddings through a
+server route, server action, function, or backend.
 
-```bash
-OPENROUTER_API_KEY=sk-or-v1-...
-```
+## Model and Schema
 
-Install and initialize the OpenAI SDK:
-
-```bash
-npm install openai
-```
-
-```typescript
-import OpenAI from 'openai'
-
-const openai = new OpenAI({
-  baseURL: 'https://openrouter.ai/api/v1',
-  apiKey: process.env.OPENROUTER_API_KEY,
-})
-```
-
-Do not expose `OPENROUTER_API_KEY` to the browser. For frontend apps, generate
-embeddings through a server route, server action, edge function, or backend.
-Use the standard `@insforge/sdk` client for database calls; see the main
-[SKILL.md](../SKILL.md) for framework-specific env var names and setup.
-
-### Picking an Embedding Model
-
-Use an OpenRouter-supported embedding model. Common choices:
-
-| Model | Dimensions | Notes |
-|-------|------------|-------|
-| `openai/text-embedding-3-small` | 1536 | Good default |
-| `openai/text-embedding-3-large` | 3072 | Higher quality, larger vectors |
-| `google/gemini-embedding-001` | 3072 | Gemini alternative |
-
-List embedding models:
+Check current embedding models before shipping:
 
 ```bash
 curl https://openrouter.ai/api/v1/embeddings/models \
   -H "Authorization: Bearer $OPENROUTER_API_KEY"
 ```
 
----
+Common dimensions:
 
-## Usage Examples
+| Model | Dimensions |
+|-------|------------|
+| `openai/text-embedding-3-small` | 1536 |
+| `openai/text-embedding-3-large` | 3072 |
+| `google/gemini-embedding-001` | 3072 |
 
-### Generate an Embedding
+The Postgres column must match the embedding dimension, for example
+`embedding vector(1536)`. Store the embedding model next to ingested content if
+you expect to re-embed or migrate later.
 
-```typescript
-const response = await openai.embeddings.create({
-  model: 'openai/text-embedding-3-small',
-  input: 'Your text here',
-})
+## Store Documents
 
-const vector = response.data[0].embedding
-```
-
-| Parameter | Type | Notes |
-|-----------|------|-------|
-| `model` | string | required; any OpenRouter-supported embedding model ID |
-| `input` | `string \| string[]` | required; pass an array for batch |
-| `encoding_format` | `'float' \| 'base64'` | default `'float'`; pgvector requires float arrays |
-| `dimensions` | number | override output dims when the model supports it |
-
-When `input` is an array, `response.data[i].embedding` aligns with `input[i]`.
-
-### `storeDocument`
+Use InsForge for the durable content row and vector. Keep one embedding model
+per vector column.
 
 ```typescript
 async function storeDocument(content: string) {
   const response = await openai.embeddings.create({
-    model: 'openai/text-embedding-3-small',
+    model: process.env.OPENROUTER_EMBEDDING_MODEL ?? 'openai/text-embedding-3-small',
     input: content,
   })
 
-  return insforge.database.from('documents').insert([{
+  const { data, error } = await insforge.database.from('documents').insert([{
     content,
     embedding: response.data[0].embedding,
+    embedding_model: process.env.OPENROUTER_EMBEDDING_MODEL ?? 'openai/text-embedding-3-small',
   }]).select()
+
+  if (error) {
+    throw error
+  }
+
+  return data
 }
 ```
 
-### `storeDocuments` (batch)
+For batch ingestion, pass an array to `input` and insert rows in the same order
+as `response.data`.
+
+## Search and Answer
+
+Embed the user query, retrieve matching rows through the `match_documents` RPC,
+then pass retrieved content into a chat completion. Store the final answer in
+your app's own table if the product has conversation history.
 
 ```typescript
-async function storeDocuments(contents: string[]) {
-  const response = await openai.embeddings.create({
-    model: 'openai/text-embedding-3-small',
-    input: contents,
-  })
-
-  const rows = contents.map((content, i) => ({
-    content,
-    embedding: response.data[i].embedding,
-  }))
-
-  return insforge.database.from('documents').insert(rows).select()
-}
-```
-
-### `searchDocuments`
-
-```typescript
-async function searchDocuments(query: string) {
-  const queryResponse = await openai.embeddings.create({
-    model: 'openai/text-embedding-3-small',
-    input: query,
-  })
-
-  return insforge.database.rpc('match_documents', {
-    query_embedding: queryResponse.data[0].embedding,
-    match_count: 5,
-    match_threshold: 0.78,
-  })
-}
-```
-
-`match_documents` is defined in
-[../database/pgvector.md](../database/pgvector.md).
-
-### `askQuestion` (basic RAG)
-
-Embed -> retrieve -> inject as context -> generate.
-
-```typescript
-async function askQuestion(question: string) {
+async function askQuestion(sessionId: string, question: string) {
   const embeddingResponse = await openai.embeddings.create({
-    model: 'openai/text-embedding-3-small',
+    model: process.env.OPENROUTER_EMBEDDING_MODEL ?? 'openai/text-embedding-3-small',
     input: question,
   })
 
-  const { data: documents } = await insforge.database.rpc('match_documents', {
+  const { data: documents, error: searchError } = await insforge.database.rpc('match_documents', {
     query_embedding: embeddingResponse.data[0].embedding,
     match_count: 5,
     match_threshold: 0.78,
   })
+
+  if (searchError) {
+    throw searchError
+  }
 
   const context = (documents ?? [])
     .map((doc: { content: string }) => doc.content)
     .join('\n\n')
 
   const completion = await openai.chat.completions.create({
-    model: 'openai/gpt-5.5',
+    model: process.env.OPENROUTER_CHAT_MODEL ?? 'openai/gpt-4o',
     messages: [
-      { role: 'system', content: `Answer using the following context:\n\n${context}` },
+      { role: 'system', content: `Answer using this context:\n\n${context}` },
       { role: 'user', content: question },
     ],
   })
 
-  return completion.choices[0]?.message?.content
+  const answer = completion.choices[0]?.message?.content ?? ''
+
+  const { error: insertError } = await insforge.database.from('chat_messages').insert([
+    { session_id: sessionId, role: 'user', content: question },
+    {
+      session_id: sessionId,
+      role: 'assistant',
+      content: answer,
+      model: completion.model,
+      retrieval_count: documents?.length ?? 0,
+    },
+  ])
+
+  if (insertError) {
+    throw insertError
+  }
+
+  return answer
 }
 ```
 
----
-
 ## Best Practices
 
-### Prototype -> Production
-
-The basic RAG flow is prototype-grade. For production add chunking, query
-rewriting, re-ranking, context truncation, and retrieval evaluation.
-
-Pair InsForge with an orchestration framework for these:
-
-| Framework | Language | Best for |
-|-----------|----------|----------|
-| LangChain | Python / TypeScript | Full pipeline orchestration |
-| LlamaIndex | Python / TypeScript | Document indexing, query engines |
-| Haystack | Python | Modular pipelines, evaluation |
-| Vercel AI SDK | TypeScript | Streaming UI, React/Next.js |
-
-All of them can use InsForge as a Postgres-backed vector store: generate
-embeddings through OpenRouter, store vectors in InsForge, retrieve with
-pgvector, then generate with OpenRouter.
-
-### One Model per Column
-
-Vectors from different embedding models live in different spaces. Pick one
-model per column; re-embed on migration.
-
-### Always Check `{ data, error }`
-
-InsForge database SDK calls return `{ data, error }`. OpenAI SDK calls throw on
-HTTP/API errors. Handle both styles explicitly.
-
-### Quick Reference
-
-| Task | Call |
-|------|------|
-| Embed one | `openai.embeddings.create({ model, input: 'text' })` |
-| Embed batch | `openai.embeddings.create({ model, input: [...] })` |
-| Store | `insforge.database.from('documents').insert([{ content, embedding }])` |
-| Search | `insforge.database.rpc('match_documents', { query_embedding, match_count, match_threshold })` |
-| Chat with context | `openai.chat.completions.create({ model, messages })` |
-
----
-
-## Deprecated Fallback
-
-`insforge.ai.embeddings.create()` and `insforge.ai.chat.completions.create()`
-may still exist in older apps, but they are deprecated. Do not use them for new
-RAG implementations unless the user explicitly asks to preserve legacy code.
+1. Design the InsForge tables first: source documents, vector column dimension,
+   match RPC, and optional chat history table.
+2. Store `embedding_model` with embedded rows so future migrations can identify
+   which vectors need re-embedding.
+3. Use one embedding model per vector column. Re-embed when changing models.
+4. Add chunking, query rewriting, re-ranking, context truncation, and retrieval
+   evaluation before treating a RAG prototype as production-ready.
+5. Use RLS on source documents and chat history. If a `SECURITY DEFINER` RPC
+   bypasses RLS, re-filter inside the function by `auth.uid()` or tenant ID.
 
 ## Common Mistakes
 
 | Mistake | Fix |
 |---------|-----|
-| Asking the user to enable an embedding model in AI Settings | Use OpenRouter embedding models and `OPENROUTER_API_KEY` |
+| Asking the user to enable an embedding model in old AI Settings | Use OpenRouter embedding models and `OPENROUTER_API_KEY` |
 | Querying `ai.configs` for embedding models | Use `/api/v1/embeddings/models` |
 | Putting `OPENROUTER_API_KEY` in browser env vars | Keep it server-side |
 | Column dimension does not match model dimension | Match `vector(N)` to the model output |

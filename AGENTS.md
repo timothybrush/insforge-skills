@@ -48,19 +48,25 @@ Each skill contains a `SKILL.md` with:
 
 ### Documentation Pattern
 
-InsForge skill modules use a two-file pattern:
+Most InsForge skill modules use a two-file pattern:
 
 | File | Purpose | When to Use |
 |------|---------|-------------|
-| `sdk-integration.md` | App-facing SDK/API usage. Most modules use `@insforge/sdk`; AI uses OpenRouter through the OpenAI SDK | Implementing features in user's app code |
+| `sdk-integration.md` | App-facing SDK/API usage, usually through `@insforge/sdk` | Implementing features in user's app code |
 | `backend-configuration.md` | Backend HTTP API configuration | Setting up infrastructure before app can use it |
+
+The AI module is capability-based instead: start at `skills/insforge/ai/overview.md`,
+then load only the needed OpenRouter guide (`chat-completions.md`,
+`image-generation.md`, `video-generation.md`, `audio.md`,
+`embeddings-and-rag.md`, or `models-list.md`).
 
 ## Working with This Repository
 
 ### Adding a New Module
 
 1. Create a directory under `skills/insforge/` with the module name
-2. Add `sdk-integration.md` for client-side SDK usage
+2. Add `sdk-integration.md` for client-side SDK usage, or use a focused
+   capability guide when the module spans multiple APIs
 3. Add `backend-configuration.md` for backend configuration (if applicable)
 4. Update the module reference table in `skills/insforge/SKILL.md`
 

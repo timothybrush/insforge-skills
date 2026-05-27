@@ -27,12 +27,12 @@ Build full-stack applications with InsForge. This skill provides comprehensive g
 - **Authentication**: Sign up/in flows, OAuth, sessions, email verification
 - **Storage**: File uploads, downloads, bucket management
 - **Functions**: Serverless function deployment and invocation
-- **AI**: OpenRouter via OpenAI SDK, `npx @insforge/cli ai setup` for key setup, image/video generation, embeddings, deprecated InsForge SDK fallback
+- **AI**: OpenRouter via project Model Gateway key setup, chat completions, image/video/audio generation, embeddings, and model discovery
 - **Real-time**: WebSocket connections, subscriptions, event publishing
 - **Payments**: Stripe Checkout Sessions, subscriptions, and Billing Portal redirects
 - **Deployments**: Frontend app deployment to InsForge hosting
 
-**Key distinction**: Backend infrastructure uses the CLI skill. Most client integration uses `@insforge/sdk`; new AI features use OpenRouter with the OpenAI SDK and an API key set up with `npx @insforge/cli ai setup`.
+**Key distinction**: Backend infrastructure uses the CLI skill. Most client integration uses `@insforge/sdk`; new AI features use OpenRouter APIs with an API key set up by `npx @insforge/cli ai setup`.
 
 </details>
 
@@ -108,27 +108,31 @@ skills/
 │   ├── SKILL.md              # Main skill manifest and overview
 │   ├── database/
 │   │   ├── sdk-integration.md
-│   │   └── backend-configuration.md
+│   │   ├── pgvector.md
+│   │   └── postgres-rls.md
 │   ├── auth/
 │   │   ├── sdk-integration.md
-│   │   └── backend-configuration.md
+│   │   └── ssr-integration.md
 │   ├── storage/
 │   │   ├── sdk-integration.md
-│   │   └── backend-configuration.md
+│   │   ├── s3-gateway.md
+│   │   └── postgres-rls.md
 │   ├── functions/
-│   │   ├── sdk-integration.md
-│   │   └── backend-configuration.md
+│   │   └── sdk-integration.md
 │   ├── ai/
-│   │   ├── sdk-integration.md
-│   │   └── backend-configuration.md
+│   │   ├── overview.md
+│   │   ├── chat-completions.md
+│   │   ├── image-generation.md
+│   │   ├── video-generation.md
+│   │   ├── audio.md
+│   │   ├── embeddings-and-rag.md
+│   │   └── models-list.md
 │   ├── realtime/
-│   │   ├── sdk-integration.md
-│   │   └── backend-configuration.md
+│   │   └── sdk-integration.md
 │   ├── payments/
-│   │   ├── sdk-integration.md
-│   │   └── backend-configuration.md
-│   └── deployments/
-│       └── workflow.md
+│   │   └── sdk-integration.md
+│   └── email/
+│       └── sdk-integration.md
 ├── insforge-cli/
 │   ├── SKILL.md              # CLI skill manifest and command reference
 │   └── references/
@@ -157,7 +161,8 @@ skills/
 
 ### Documentation Pattern
 
-- **`sdk-integration.md`**: How to use app-facing SDKs/APIs in application code. For AI, this means OpenRouter through the OpenAI SDK, with the old `insforge.ai` module only as a deprecated fallback.
+- **`sdk-integration.md`**: How to use app-facing SDKs/APIs in application code.
+- **AI capability guides**: `ai/overview.md` links to smaller OpenRouter-focused guides for chat completions, image generation, video generation, audio, embeddings/RAG, and model discovery. The old `insforge.ai` module is only a deprecated fallback.
 - **`backend-configuration.md`**: How to configure InsForge backend via HTTP API
 
 ## Contributing
