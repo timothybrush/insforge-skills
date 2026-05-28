@@ -29,7 +29,7 @@ Before using the SDK, create a `.env` file (or `.env.local` for Next.js) in your
 #### How to get your URL and anon key
 
 1. **Ensure the project is linked.** Check for `.insforge/project.json` in the project root.
-   - If it doesn't exist, run `npx @insforge/cli link` (existing project) or `npx @insforge/cli create` (new project) to generate it.
+   - Generate it with `npx @insforge/cli link` for an existing project or `npx @insforge/cli create` for a new project.
 
 2. **Get the anon key** via the CLI:
    ```bash
@@ -40,7 +40,7 @@ Before using the SDK, create a `.env` file (or `.env.local` for Next.js) in your
 
 4. **Write both values** to the `.env` file using the correct framework prefix (see table below).
 
-> **Important:** Use the anon key for SDK clients, including SSR. Use the API key only for privileged backend operations that need admin/service access; it is a full-access admin key, equivalent to a service role key on other platforms.
+> **Important:** Use the anon key for user-scoped SDK clients, including SSR. For privileged server-only app code that needs admin/service access, use `createAdminClient({ apiKey })`; the API key is a full-access admin key, equivalent to a service role key on other platforms.
 
 Use the correct environment variable prefix and access pattern for your framework:
 
@@ -59,7 +59,7 @@ NEXT_PUBLIC_INSFORGE_URL=https://your-appkey.us-east.insforge.app
 NEXT_PUBLIC_INSFORGE_ANON_KEY=eyJhbGciOiJIUzI1NiIs...
 ```
 
-> **Important:** Never commit `.env` files to version control. Add `.env`, `.env.local`, and `.env*.local` to your `.gitignore` (keep `.env.example` for documenting required variables).
+> **Important:** Keep `.env` files local. Add `.env`, `.env.local`, and `.env*.local` to your `.gitignore` and keep `.env.example` for documenting required variables.
 
 ### 3. Initialize the client
 
@@ -79,15 +79,26 @@ const insforge = createClient({
 })
 ```
 
+For trusted server-only code that needs project-admin access:
+
+```javascript
+import { createAdminClient } from '@insforge/sdk'
+
+const admin = createAdminClient({
+  baseUrl: process.env.INSFORGE_URL,
+  apiKey: process.env.INSFORGE_API_KEY
+})
+```
+
 ## Module Reference
 
-| Module | SDK Integration |
-|--------|-----------------|
+| Module | Integration Guide |
+|--------|-------------------|
 | **Database** | [database/sdk-integration.md](database/sdk-integration.md) |
 | **Auth** | [auth/sdk-integration.md](auth/sdk-integration.md) |
 | **Storage** | [storage/sdk-integration.md](storage/sdk-integration.md) |
 | **Functions** | [functions/sdk-integration.md](functions/sdk-integration.md) |
-| **AI** | [ai/sdk-integration.md](ai/sdk-integration.md) |
+| **AI** | [ai/overview.md](ai/overview.md) |
 | **Real-time** | [realtime/sdk-integration.md](realtime/sdk-integration.md) |
 | **Email** | [email/sdk-integration.md](email/sdk-integration.md) |
 | **Payments** | [payments/sdk-integration.md](payments/sdk-integration.md) |
@@ -100,7 +111,7 @@ const insforge = createClient({
 | **Auth** | Sign up/in, OAuth, sessions, profiles, password reset |
 | **Storage** | Upload, download, delete files; S3-compatible gateway for CI / backup tooling; write RLS policies for buckets |
 | **Functions** | Invoke edge functions |
-| **AI** | OpenRouter via OpenAI SDK, image/video generation, embeddings, deprecated InsForge SDK fallback |
+| **AI** | OpenRouter AI calls for chat, images, video, audio, embeddings, and model discovery |
 | **Email** | Send custom transactional HTML emails (welcome, newsletter, notifications) |
 | **Payments** | Stripe Checkout Sessions, subscriptions, and Billing Portal redirects |
 | **Real-time** | Connect, subscribe, publish events, and track presence snapshots plus join/leave deltas |
@@ -113,7 +124,12 @@ const insforge = createClient({
 | [storage/s3-gateway.md](storage/s3-gateway.md) | Fallback path when the consumer is existing S3 tooling (aws CLI, AWS SDKs, rclone, Terraform, boto3) and adopting `@insforge/sdk` is impractical — covers endpoint/region setup, access-key management, path-style addressing, and supported vs. not-supported S3 operations. **Requires InsForge 2.0.9+.** **Prefer the SDK** ([storage/sdk-integration.md](storage/sdk-integration.md)) for app code |
 | [storage/postgres-rls.md](storage/postgres-rls.md) | Writing RLS policies for `storage.objects` — owner-only, public-read, path-scoped, team-shared, and the `NULL uploaded_by` caveat for mixed REST + S3 buckets |
 | [database/pgvector.md](database/pgvector.md) | Building semantic search, recommendations, or RAG — covers the `vector` extension, schema/dimensions, distance operators, HNSW/IVFFlat indexes, and RPC similarity search |
-| [ai/embeddings-and-rag.md](ai/embeddings-and-rag.md) | Generating embeddings through OpenRouter, storing them in pgvector, and wiring up a basic RAG pipeline with chat completions |
+| [ai/chat-completions.md](ai/chat-completions.md) | Text generation, structured answers, and streaming chat through OpenRouter |
+| [ai/image-generation.md](ai/image-generation.md) | Image generation/editing through OpenRouter, then durable storage in InsForge Storage |
+| [ai/video-generation.md](ai/video-generation.md) | Async OpenRouter video jobs, status polling, and storing generated media |
+| [ai/audio.md](ai/audio.md) | Speech-to-text, text-to-speech, and storing audio assets/transcripts with InsForge |
+| [ai/embeddings-and-rag.md](ai/embeddings-and-rag.md) | Generating embeddings through OpenRouter, storing them in pgvector, and wiring up a basic RAG pipeline |
+| [ai/models-list.md](ai/models-list.md) | Discovering OpenRouter model IDs, modalities, parameters, pricing, and embedding dimensions |
 | [payments](../insforge-cli/references/payments.md) | Configuring Stripe keys, syncing catalog, creating products/prices, webhooks, and portal RLS before app integration |
 
 ### Building Checkout for a New App
@@ -126,17 +142,14 @@ The real-time SDK is for frontend event handling and messaging. Configure channe
 
 ### Backend Configuration (Not Yet in CLI)
 
-These modules still require HTTP API calls because the CLI does not yet support them:
-
-| Module | Backend Configuration |
-|--------|----------------------|
-| **AI** | [ai/backend-configuration.md](ai/backend-configuration.md) |
-
-> Auth redirect URL allowlist is now managed via the CLI — use `npx @insforge/cli config export/plan/apply`. Other auth settings (password policy, OAuth providers, verification methods) still live on the dashboard. See the **insforge-cli** skill's Configuration section.
+Auth redirect URL allowlist is now managed via the CLI — use
+`npx @insforge/cli config export/plan/apply`. Other auth settings (password
+policy, OAuth providers, verification methods) still live on the dashboard. See
+the **insforge-cli** skill's Configuration section.
 
 ### Risky backend changes? Use a branch first
 
-When a code change in this skill depends on a **schema migration**, **new RLS policy**, **OAuth provider config change**, or any other backend change that could brick prod, create a backend branch first instead of editing the live project. Branches share `JWT_SECRET` (existing user JWTs keep working) but get a fresh database + EC2 + `API_KEY` / `ANON_KEY`, so you can test the SDK + backend change end-to-end in isolation.
+When a code change in this skill depends on a **schema migration**, **new RLS policy**, **OAuth provider config change**, or any other backend change that affects prod behavior, create a backend branch first. Branches share `JWT_SECRET` (existing user JWTs keep working) but get a fresh database + EC2 + `API_KEY` / `ANON_KEY`, so you can test the SDK + backend change end-to-end in isolation.
 
 The full branching workflow lives in the **insforge-cli** skill — see [branch](../insforge-cli/references/branch.md) for the decision guide and lifecycle commands. Typical loop:
 
@@ -148,7 +161,7 @@ npx @insforge/cli branch merge feat-x --dry-run     # review SQL
 npx @insforge/cli branch merge feat-x               # apply to parent
 ```
 
-> ⚠ **After `branch create` or `branch switch`**, the SDK's `INSFORGE_URL` and `INSFORGE_ANON_KEY` change. **Restart your dev server** (or re-source `.env`) so the SDK starts talking to the branch backend. If you don't, the SDK will silently keep hitting parent — the #1 cause of "I switched but my changes aren't showing up".
+> ⚠ **After `branch create` or `branch switch`**, update the app's InsForge URL and anon-key env values, then **restart your dev server** (or re-source `.env`) so the SDK talks to the selected branch backend.
 
 ## SDK Quick Reference
 
@@ -167,15 +180,15 @@ All SDK methods return `{ data, error }`.
 
 ## Important Notes
 
-- **Database inserts require array format**: `insert([{...}])` not `insert({...})`
-- **Next.js / SSR auth**: Use `createClient({ isServerMode: true })`, keep tokens in httpOnly cookies, and perform auth flows on the server. See [auth/sdk-integration.md](auth/sdk-integration.md)
+- **Database inserts require array format**: `insert([{...}])`
+- **Next.js / SSR auth**: Use `@insforge/sdk/ssr` helpers (`createBrowserClient`, `createServerClient`, `createRefreshAuthRouter`, `updateSession`). Keep the refresh token httpOnly and let the browser read the short-lived access token for Storage/Realtime. See [auth/ssr-integration.md](auth/ssr-integration.md)
 - **Storage**: Save both `url` AND `key` to database for download/delete operations
-- **Functions invoke URL**: `/functions/{slug}` (without `/api` prefix)
-- **Email — no SMTP, no third-party packages**: Auth emails (signup verification, password reset, magic links, invites) ship on **every plan**. Custom email via `insforge.emails.send()` ships on **every paid plan**. **Never install `nodemailer` / `resend` / `sendgrid` / `mailgun` / `postmark` or ask for SMTP credentials** — the platform handles delivery. Custom sender domain is dashboard config, not `package.json`. See [email/sdk-integration.md](email/sdk-integration.md).
+- **Functions invoke URL**: `/functions/{slug}`
+- **Email delivery**: Auth emails (signup verification, password reset, magic links, invites) ship on **every plan**. Custom email via `insforge.emails.send()` ships on **every paid plan**. Use the platform-managed delivery path; custom sender domain is dashboard config. See [email/sdk-integration.md](email/sdk-integration.md).
 - **Payments**: Configure Stripe keys/catalog with `npx @insforge/cli payments ...` first; frontend code only creates Checkout/Portal sessions.
 - **Payment RLS**: Before subscription checkout or Billing Portal UI, add app-specific RLS on `payments.checkout_sessions` and `payments.customer_portal_sessions`. Checkout creation needs `INSERT`; checkout requests with `idempotencyKey` also need matching `SELECT` on `payments.checkout_sessions`.
-- **Use Tailwind CSS v3.4** (do not upgrade to v4)
+- **Use Tailwind CSS v3.4**
 - **Always local build before deploy**: Prevents wasted build resources and faster debugging
-- **Deprecated packages**: `@insforge/react`, `@insforge/nextjs`, and `@insforge/react-router` are **deprecated**. Do NOT install or use them. Use `@insforge/sdk` directly for all features including authentication.
+- **SDK package**: Use `@insforge/sdk` directly for all features including authentication.
 - **Deployment**: Include a `vercel.json` in the project root for SPA routing (React, React Router apps). The `download-template` tool includes this automatically.
-- **Branching for risky backend changes**: If your SDK code depends on a new schema, RLS policy, or auth config change, create a branch via `npx @insforge/cli branch create` first — see the **insforge-cli** skill's [branch](../insforge-cli/references/branch.md) reference. After `branch create` / `branch switch`, **restart the dev server** so the SDK picks up the new `INSFORGE_URL` / `INSFORGE_ANON_KEY`.
+- **Branching for risky backend changes**: If your SDK code depends on a new schema, RLS policy, or auth config change, create a branch via `npx @insforge/cli branch create` first — see the **insforge-cli** skill's [branch](../insforge-cli/references/branch.md) reference. After `branch create` / `branch switch`, update the app's InsForge URL and anon-key env values, then **restart the dev server**.

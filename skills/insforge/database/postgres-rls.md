@@ -51,24 +51,35 @@ ALTER TABLE posts ENABLE ROW LEVEL SECURITY;
 
 -- 3. Create policies
 CREATE POLICY "anyone can read" ON posts
-  FOR SELECT USING (true);
+  FOR SELECT TO anon, authenticated
+  USING (true);
 
 CREATE POLICY "owners can insert" ON posts
-  FOR INSERT WITH CHECK (user_id = auth.uid());
+  FOR INSERT TO authenticated
+  WITH CHECK (user_id = auth.uid());
 
 CREATE POLICY "owners can update" ON posts
-  FOR UPDATE USING (user_id = auth.uid())
+  FOR UPDATE TO authenticated
+  USING (user_id = auth.uid())
   WITH CHECK (user_id = auth.uid());
 
 CREATE POLICY "owners can delete" ON posts
-  FOR DELETE USING (user_id = auth.uid());
+  FOR DELETE TO authenticated
+  USING (user_id = auth.uid());
 
--- 4. Auto-update updated_at
+-- 4. Grant SQL privileges to the roles that should pass through the policies
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
+GRANT SELECT ON posts TO anon, authenticated;
+GRANT INSERT, UPDATE, DELETE ON posts TO authenticated;
+
+-- 5. Auto-update updated_at
 CREATE TRIGGER posts_updated_at
   BEFORE UPDATE ON posts
   FOR EACH ROW
   EXECUTE FUNCTION system.update_updated_at();
 ```
+
+Policies decide which rows a role may access after PostgreSQL has allowed the SQL operation. They do not grant `SELECT`, `INSERT`, `UPDATE`, or `DELETE` privileges. If a table has policies but no matching `GRANT`, SDK/REST calls still fail before RLS can allow the row.
 
 ---
 
@@ -243,17 +254,25 @@ CREATE POLICY "item access" ON order_items
 
 ```sql
 CREATE POLICY "public read" ON posts
-  FOR SELECT USING (true);
+  FOR SELECT TO anon, authenticated
+  USING (true);
 
 CREATE POLICY "owner write" ON posts
-  FOR INSERT WITH CHECK (user_id = auth.uid());
+  FOR INSERT TO authenticated
+  WITH CHECK (user_id = auth.uid());
 
 CREATE POLICY "owner update" ON posts
-  FOR UPDATE USING (user_id = auth.uid())
+  FOR UPDATE TO authenticated
+  USING (user_id = auth.uid())
   WITH CHECK (user_id = auth.uid());
 
 CREATE POLICY "owner delete" ON posts
-  FOR DELETE USING (user_id = auth.uid());
+  FOR DELETE TO authenticated
+  USING (user_id = auth.uid());
+
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
+GRANT SELECT ON posts TO anon, authenticated;
+GRANT INSERT, UPDATE, DELETE ON posts TO authenticated;
 ```
 
 ### Role-Based Access with Helper Function
@@ -268,16 +287,23 @@ RETURNS BOOLEAN AS $$
 $$ LANGUAGE sql STABLE SECURITY DEFINER;  -- SECURITY DEFINER: prevents recursive RLS
 
 CREATE POLICY "org members access" ON projects
-  FOR ALL
+  FOR ALL TO authenticated
   USING (is_org_member(org_id))
   WITH CHECK (is_org_member(org_id));
+
+GRANT USAGE ON SCHEMA public TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON projects TO authenticated;
 ```
 
 ### Authenticated-Only Access
 
 ```sql
 CREATE POLICY "authenticated users only" ON profiles
-  FOR SELECT USING (auth.uid() IS NOT NULL);
+  FOR SELECT TO authenticated
+  USING (auth.uid() IS NOT NULL);
+
+GRANT USAGE ON SCHEMA public TO authenticated;
+GRANT SELECT ON profiles TO authenticated;
 ```
 
 ---
@@ -287,6 +313,7 @@ CREATE POLICY "authenticated users only" ON profiles
 Before completing an RLS implementation:
 
 - [ ] All tables with user data have `ALTER TABLE ... ENABLE ROW LEVEL SECURITY`
+- [ ] Matching SQL privileges are granted to `anon`/`authenticated` (`GRANT USAGE ON SCHEMA ...`, `GRANT SELECT/INSERT/UPDATE/DELETE ON ...`)
 - [ ] All policies have both `USING` and `WITH CHECK` where applicable
 - [ ] No circular RLS dependencies between tables (infinite recursion risk)
 - [ ] All helper functions called from policies are `SECURITY DEFINER`

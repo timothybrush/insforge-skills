@@ -22,7 +22,7 @@ npx @insforge/cli payments status
 npx @insforge/cli payments catalog --environment test
 ```
 
-If the CLI says `Payments are not available on this backend`, stop and ask the developer/admin to enable payments or upgrade the self-hosted backend. Do not implement a direct Stripe secret-key flow in the frontend. If keys, products, or prices are missing, configure them first. See the **insforge-cli** skill's [payments](../../insforge-cli/references/payments.md) reference.
+If the CLI says `Payments are not available on this backend`, ask the developer/admin to enable payments or upgrade the self-hosted backend. Use the InsForge-managed Stripe configuration path for keys, products, and prices before writing frontend payment flows. See the **insforge-cli** skill's [payments](../../insforge-cli/references/payments.md) reference.
 
 Before integrating payments, make sure a Stripe key is configured. If `payments status` shows `unconfigured`, ask the user for the Stripe key first. See the **insforge-cli** skill's [payments](../../insforge-cli/references/payments.md) reference.
 
@@ -37,7 +37,7 @@ Checkout creation needs an `INSERT` policy. If the app sends checkout `idempoten
 
 For example, if subscriptions belong to teams, policies must prove the current user belongs to the team before allowing rows with `subject: { type: 'team', id: teamId }`. If subscriptions belong to organizations, workspaces, or users, write policies for that structure instead.
 
-Do not expose UI that accepts arbitrary `subject.type` or `subject.id` until these policies exist. See the **insforge-cli** skill's [payments](../../insforge-cli/references/payments.md#session-rls-before-app-integration) reference.
+Expose UI for `subject.type` and `subject.id` after these policies exist. See the **insforge-cli** skill's [payments](../../insforge-cli/references/payments.md#session-rls-before-app-integration) reference.
 
 ## One-Time Checkout
 
@@ -45,7 +45,7 @@ Use `mode: 'payment'` for one-time purchases. For one-time payments, `subject` i
 
 If the buyer is signed in, prefer passing a subject so checkout RLS can use the same ownership model as subscriptions. If you enable RLS on `payments.checkout_sessions`, subject-less `mode: 'payment'` rows need their own narrow `INSERT` policy, plus `SELECT` when the request sends `idempotencyKey` or user-facing read paths need to see the checkout attempt. See the **insforge-cli** skill's [payments](../../insforge-cli/references/payments.md#session-rls-before-app-integration) reference.
 
-If the payment should fulfill an app record such as an order, credit grant, download, or booking, create that app record first and pass its ID in checkout metadata. Do not mark it paid from the success URL.
+If the payment should fulfill an app record such as an order, credit grant, download, or booking, create that app record first and pass its ID in checkout metadata. Let backend fulfillment mark the record paid.
 
 Signed-in checkout with subject-based RLS:
 
@@ -70,9 +70,9 @@ if (data?.checkoutSession.url) {
 }
 ```
 
-### What `lineItems` Does Not Support
+### Supported `lineItems` Shape
 
-The current request shape only accepts `lineItems: [{ stripePriceId, quantity }]`. It does not accept `priceData`, `discounts`, `coupons`, or `allowPromotionCodes`.
+The current request shape accepts `lineItems: [{ stripePriceId, quantity }]`. Use Stripe Prices created through the dashboard/CLI for catalog variants, discounts, coupons, and promotion-code setup.
 
 For tiered pricing, create one Stripe Price per `(product x pricing tier)`, store each variant on the app's product row, and pick the right `stripePriceId` before checkout.
 
@@ -104,9 +104,9 @@ Frontend pattern:
 4. On the success route, read the app-owned order/entitlement table and show `pending`, `paid`, or `fulfilled`.
 5. Optionally subscribe to the app-owned table with Realtime for immediate UI updates.
 
-Do not let users supply arbitrary `order_id` metadata. Create or select the pending order through app logic/RLS first, then pass that trusted row ID into Checkout.
+Create or select the pending order through app logic/RLS first, then pass that trusted row ID into Checkout metadata.
 
-If the success page also runs user-dependent side effects, wait for auth loading to finish before choosing the signed-in vs guest branch. Webhook-backed Realtime updates can arrive before a cold-load auth refresh completes. See [../auth/sdk-integration.md#dont-fire-user-dependent-side-effects-during-auth-loading](../auth/sdk-integration.md#dont-fire-user-dependent-side-effects-during-auth-loading).
+If the success page also runs user-dependent side effects, wait for auth loading to finish before choosing the signed-in vs guest branch. Webhook-backed Realtime updates can arrive before a cold-load auth refresh completes. See [../auth/sdk-integration.md#gate-user-dependent-side-effects-during-auth-loading](../auth/sdk-integration.md#gate-user-dependent-side-effects-during-auth-loading).
 
 The backend fulfillment migration should be implemented separately before relying on the success page. See the **insforge-cli** skill's [payments](../../insforge-cli/references/payments.md#fulfillment-migrations) reference for the trigger/source-table guidance.
 
@@ -156,7 +156,7 @@ The SDK currently exposes creation flows only:
 - `insforge.payments.createCheckoutSession(environment, body)`
 - `insforge.payments.createCustomerPortalSession(environment, body)`
 
-Do not assume frontend users can read `payments.subscriptions` or `payments.payment_history` directly. Those are admin/backend projections. If the app needs user-facing entitlement or billing status, create an app-specific read model such as:
+Treat `payments.subscriptions` and `payments.payment_history` as admin/backend projections. If the app needs user-facing entitlement or billing status, create an app-specific read model such as:
 
 - `public.team_billing_status`
 - `public.user_entitlements`
@@ -168,30 +168,30 @@ Protect those tables with app-specific RLS. Backend fulfillment should populate 
 
 During implementation, pass `'test'` as the first argument to the payments SDK methods, for example `insforge.payments.createCheckoutSession('test', body)`. Only switch to `'live'` after the developer explicitly approves production Stripe changes and live prices are configured.
 
-Do not put Stripe secret keys in frontend code. Stripe keys are configured through the dashboard or CLI and stored in InsForge's secret store.
+Keep Stripe secret keys in InsForge's secret store. Configure Stripe keys through the dashboard or CLI.
 
 ## Best Practices
 
 1. **Use stable idempotency keys** for checkout creation, especially carts and subscription plan changes.
-2. **Always redirect using the returned URL**; never construct Stripe Checkout or Portal URLs manually.
+2. **Always redirect using the returned URL**.
 3. **Use explicit success and cancel URLs** matching the app routes.
 4. **Treat Stripe as source of truth** for catalog data. Use the CLI/dashboard to sync before relying on product or price IDs.
 5. **Use subjects consistently**. If subscriptions bill teams, always use `subject: { type: 'team', id: teamId }`.
 6. **Create payment-session RLS before subscription UI**. Checkout creation needs `INSERT`; checkout requests with `idempotencyKey` also need matching `SELECT`. See the **insforge-cli** skill's [payments](../../insforge-cli/references/payments.md#session-rls-before-app-integration) reference.
-7. **Do not treat redirects as fulfillment**. Success pages should read app-owned fulfilled state.
+7. **Treat redirects as navigation**. Success pages should read app-owned fulfilled state.
 
 ## Common Mistakes
 
 | Mistake | Fix |
 |---------|-----|
-| Putting `sk_test_...` or `sk_live_...` in frontend code | Configure keys with `npx @insforge/cli payments config set ...` |
+| Putting Stripe secret keys in frontend code | Configure keys with `npx @insforge/cli payments config set ...` |
 | Creating subscription checkout without a subject | Pass the app billing owner as `subject` |
 | Letting users submit arbitrary subject IDs | Add RLS on `payments.checkout_sessions` and `payments.customer_portal_sessions` based on membership/ownership |
 | Idempotent checkout retries fail after adding only `INSERT` | Add a matching `SELECT` policy for rows the caller may retry/read |
 | Reading payment admin tables from the browser | Create app-specific entitlement tables or a trusted edge function |
 | Using live environment during development | Use `test` until the developer approves production |
 | Marking an order paid on the success URL | Add backend fulfillment first, then read the app-owned order state |
-| Using `payments.checkout_sessions` as proof of payment | Treat checkout sessions as attempts; read app-owned fulfilled state instead |
+| Using `payments.checkout_sessions` as proof of payment | Treat checkout sessions as attempts; read app-owned fulfilled state |
 
 ## Recommended Workflow
 
