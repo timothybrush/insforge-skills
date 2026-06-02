@@ -160,9 +160,9 @@ import { createServerClient } from '@insforge/sdk/ssr'
 
 export async function initiateOAuth(provider: string) {
   const client = createServerClient()
-  const { data, error } = await client.auth.signInWithOAuth({
-    provider,
+  const { data, error } = await client.auth.signInWithOAuth(provider, {
     redirectTo: new URL('/api/auth/callback', process.env.NEXT_PUBLIC_APP_URL).toString(),
+    // additionalParams: { prompt: 'select_account' }, // optional provider-specific hints
     skipBrowserRedirect: true
   })
 
@@ -182,6 +182,8 @@ export async function initiateOAuth(provider: string) {
   redirect(data.url)
 }
 ```
+
+Use `additionalParams` only for provider-specific optional hints. Do not pass server-owned OAuth fields such as `client_id`, `scope`, `redirect_uri`, `code_challenge`, `state`, or `response_type`; InsForge sets those server-side and ignores colliding client-provided keys.
 
 Set `redirectTo` to your app URL. The backend appends `?insforge_code=<code>` and redirects there.
 

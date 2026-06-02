@@ -115,11 +115,13 @@ OAuth uses PKCE. The SDK handles code generation, redirect, and token exchange a
 ### SPA (browser) — fully automatic
 
 ```javascript
-await insforge.auth.signInWithOAuth({
-  provider: 'google',
-  redirectTo: 'http://localhost:3000/dashboard' // any page where SDK is initialized
+await insforge.auth.signInWithOAuth('google', {
+  redirectTo: 'http://localhost:3000/dashboard', // any page where SDK is initialized
+  additionalParams: { prompt: 'select_account' } // optional provider-specific params
 })
 ```
+
+Use `additionalParams` only for provider-specific optional hints. Do not pass server-owned OAuth fields such as `client_id`, `scope`, `redirect_uri`, `code_challenge`, `state`, or `response_type`; InsForge sets those server-side and ignores colliding client-provided keys.
 
 The SDK constructor auto-detects `insforge_code` in the URL, exchanges it for a session, and cleans the URL. Initialize the SDK on the `redirectTo` page.
 
@@ -128,8 +130,7 @@ The SDK constructor auto-detects `insforge_code` in the URL, exchanges it for a 
 The browser auto-detection is for SPA flows. In SSR apps, use `skipBrowserRedirect: true` and exchange the OAuth code in a Route Handler so the refresh token can be written as an httpOnly cookie. See [ssr-integration.md](ssr-integration.md) for the full implementation.
 
 ```javascript
-const { data } = await insforge.auth.signInWithOAuth({
-  provider: 'google',
+const { data } = await insforge.auth.signInWithOAuth('google', {
   redirectTo: 'https://yourapp.com/api/auth/callback',
   skipBrowserRedirect: true
 })
@@ -141,8 +142,8 @@ const { data } = await insforge.auth.signInWithOAuth({
 
 | Method | When to use |
 |--------|-------------|
-| `signInWithOAuth({ provider, redirectTo })` | SPA: auto-redirects and handles everything |
-| `signInWithOAuth({ ..., skipBrowserRedirect: true })` | SSR: returns `{ url, codeVerifier }` for manual handling |
+| `signInWithOAuth(provider, { redirectTo, additionalParams? })` | SPA: auto-redirects and handles everything |
+| `signInWithOAuth(provider, { redirectTo, additionalParams?, skipBrowserRedirect: true })` | SSR: returns `{ url, codeVerifier }` for manual handling |
 | `exchangeOAuthCode(code, codeVerifier?)` | Exchange `insforge_code` for session. Auto-called in SPA; call manually in SSR |
 
 ## Sign Out
