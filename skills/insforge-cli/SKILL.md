@@ -30,8 +30,10 @@ In benchmark workspaces, assume the project is already linked to the local sandb
 - Use `npx @insforge/cli db query <sql>` for inspection, targeted SQL checks, schema-cache reloads, and small corrective SQL only when a migration is not appropriate.
 - Inspect current state with `db tables`, `db indexes`, `db policies`, `db triggers`, `db functions`, and `db migrations list`.
 - Reload PostgREST schema cache after schema or policy changes when needed: `npx @insforge/cli db query "NOTIFY pgrst, 'reload schema'"`.
-- Keep task changes in the public application schema unless the task explicitly says otherwise.
-- Do not write to InsForge-managed system schemas except documented developer-managed tables such as `storage.objects`, `realtime.channels`, `realtime.messages`, `payments.checkout_sessions`, and `payments.customer_portal_sessions`.
+- For benchmark DB tasks, do all application database work in the `public` schema.
+- Create, alter, drop, grant, revoke, index, trigger, function, view, and policy changes only for `public` application objects.
+- Do not create custom schemas or write to InsForge-managed/system schemas such as `auth`, `storage`, `realtime`, `payments`, `graphql`, `extensions`, `pg_catalog`, `information_schema`, or `system`.
+- It is allowed to reference built-in objects such as `auth.users(id)` and `auth.uid()` from public tables or public RLS policies; do not modify those built-in objects.
 - Do not create users, seed business rows, or run application CRUD workflows unless the task explicitly asks for data migration or repair. Benchmark verifiers handle user creation and behavior checks.
 
 ## RLS Guidance
@@ -40,6 +42,7 @@ In benchmark workspaces, assume the project is already linked to the local sandb
 - Add both SQL privileges and RLS policies. Policies do not replace `GRANT`.
 - Prefer helper functions for cross-table RLS checks when direct policy joins can recurse through other RLS policies.
 - Helper functions called from RLS policies that query RLS-enabled tables should be `SECURITY DEFINER`.
+- Put RLS helper functions in `public`.
 - For production-quality `SECURITY DEFINER` helpers, set a fixed search path, for example `SET search_path = public`.
 - Include `WITH CHECK` for INSERT and UPDATE policies so writes cannot create rows the user should not own.
 

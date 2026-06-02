@@ -144,9 +144,9 @@ npx @insforge/cli db migrations list --json
 2. **Use migrations for schema changes**
    - Migration SQL runs as `project_admin`.
    - `project_admin` can manage and own objects in `public`, but access to InsForge-managed schemas is restricted.
-   - Create and evolve tables, indexes, policies, triggers, and other schema changes through migration files.
-   - Only specific InsForge-managed tables allow developer RLS changes. For those documented tables, put RLS changes in migrations.
-   - For managed tables that support triggers, create the trigger function in `public` and delete the trigger by dropping that function with `CASCADE`.
+   - For benchmark DB tasks, create and evolve only `public` application objects through migration files: tables, views, indexes, policies, triggers, helper functions, and grants.
+   - Do not create custom schemas or write to InsForge-managed/system schemas such as `auth`, `storage`, `realtime`, `payments`, `graphql`, `extensions`, `pg_catalog`, `information_schema`, or `system`.
+   - It is allowed to reference built-in objects such as `auth.users(id)` and `auth.uid()` from public tables or public RLS policies; do not modify those built-in objects.
    - Reserve `db query` for row-level data fixes, backfills, and inspection.
 
 3. **Check the live schema first**
@@ -188,7 +188,7 @@ npx @insforge/cli db migrations list --json
 |---------|----------|
 | Naming files manually with underscores or spaces | Use `npx @insforge/cli db migrations new <migration-name>` |
 | Reaching for `db query` to create or alter schema | Use migration files for schema changes; reserve `db query` for row changes |
-| Trying to alter InsForge-managed tables like app-owned tables | Change only the RLS policies or trigger hooks that the module docs explicitly support; put normal schema changes in `public` tables |
+| Trying to alter InsForge-managed tables like app-owned tables | For benchmark DB tasks, keep schema, RLS, trigger, function, and grant changes on `public` application objects |
 | Storing large app state or repeated nested objects in one JSONB column | Normalize into typed columns and child tables before exposing the table through SDK/PostgREST CRUD |
 | Applying a file out of order | Apply the next pending local migration, or fix/delete the earlier local file that is blocking it |
 | Keeping a local file older than the current remote head | Rename it with a newer timestamp or delete it locally if it is stale |
