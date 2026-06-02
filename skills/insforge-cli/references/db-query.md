@@ -50,13 +50,13 @@ npx @insforge/cli db query "SELECT count(*) FROM posts" --json
 
 - `public`: full access for normal data changes and schema work.
 - Postgres system catalogs such as `pg_catalog` and `information_schema`: read-only inspection is allowed.
-- InsForge-managed/system schemas such as `auth`, `storage`, `realtime`, `payments`, `graphql`, `extensions`, `pg_catalog`, `information_schema`, or `system`: do not write or run DDL in benchmark DB tasks.
+- InsForge-managed/system schemas such as `auth`, `storage`, `realtime`, `payments`, `graphql`, `extensions`, `pg_catalog`, `information_schema`, or `system`: do not write or run DDL unless you are working on that specific feature module and its docs explicitly allow the operation.
 
 Use `npx @insforge/cli db migrations new ...` and `npx @insforge/cli db migrations up ...` for schema changes on `public` application objects.
 
 Use `db query` for:
 
-- reading app data and managed-schema data
+- reading app data and inspecting managed-schema data
 - inspecting Postgres system catalogs such as `pg_catalog` and `information_schema`
 - backfilling or correcting rows in `public`
 - one-off row updates in `public`

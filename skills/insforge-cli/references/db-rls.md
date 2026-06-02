@@ -22,16 +22,16 @@ The current user's ID is available via `auth.uid()`. All user foreign keys shoul
 
 Raw SQL from `db query` and migration files runs as `project_admin`. This role can manage and own objects in `public`; access to InsForge-managed schemas is restricted.
 
-### Public-Schema-Only Benchmark Work
+### Schema Scope and Managed Modules
 
-For benchmark DB tasks, do all application database work in the `public` schema.
+For generic application database work, create and modify app-owned objects in the `public` schema.
 
-- Create, alter, drop, grant, revoke, index, trigger, function, view, and policy changes only for `public` application objects.
-- Do not create custom schemas or write to InsForge-managed/system schemas such as `auth`, `storage`, `realtime`, `payments`, `graphql`, `extensions`, `pg_catalog`, `information_schema`, or `system`.
+- Create, alter, drop, grant, revoke, index, trigger, function, view, and policy changes on `public` application objects.
+- Do not create custom schemas or write to InsForge-managed/system schemas such as `auth`, `storage`, `realtime`, `payments`, `graphql`, `extensions`, `pg_catalog`, `information_schema`, or `system`, unless you are working on that specific feature module and its docs explicitly allow the operation.
 - It is allowed to reference built-in objects such as `auth.users(id)` and `auth.uid()` from public tables or public RLS policies; do not modify those built-in objects.
 - Put RLS helper functions in `public` and set a fixed search path, for example `SET search_path = public`.
 
-Managed table RLS belongs to storage, realtime, or payments module work, not the DB benchmark task set.
+Managed table RLS belongs to the corresponding storage, realtime, or payments feature context. Use those feature docs when the task is specifically about those modules.
 
 ### Minimal RLS Setup
 

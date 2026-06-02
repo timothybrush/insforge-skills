@@ -1,17 +1,17 @@
 ---
 name: insforge-cli
-description: Use this benchmark-focused skill for InsForge CLI database work: SQL migrations, raw SQL inspection, RLS policies, schema grants, indexes, triggers, functions, imports, and exports. For app code with @insforge/sdk, use the app SDK skill instead.
+description: Use this skill for InsForge CLI database work: SQL migrations, raw SQL inspection, RLS policies, schema grants, indexes, triggers, functions, imports, and exports. For app code with @insforge/sdk, use the app SDK skill instead.
 license: MIT
 metadata:
   author: insforge
-  version: "benchmark-db-only"
+  version: "database-cli"
   organization: InsForge
   date: June 2026
 ---
 
 # InsForge CLI Database Skill
 
-This branch provides a DB-focused InsForge CLI skill snapshot for benchmark runs. It keeps the CLI guidance narrow so agents spend less context on unrelated backend modules.
+Use this skill for database schema, migration, query, and RLS work with the InsForge CLI. For storage, auth, realtime, payments, functions, deployment, or app SDK code, use the corresponding feature guidance instead of treating those modules as generic database work.
 
 ## CLI Invocation
 
@@ -21,7 +21,7 @@ Always use:
 npx @insforge/cli <command>
 ```
 
-In benchmark workspaces, assume the project is already linked to the local sandbox backend. Do not run login, create, link, project discovery, organization listing, or cloud project commands.
+When the project is already linked, use the current linked project. Run login, project creation, link, project discovery, organization listing, or cloud project commands only when connection setup is explicitly needed.
 
 ## Database Workflow
 
@@ -30,11 +30,11 @@ In benchmark workspaces, assume the project is already linked to the local sandb
 - Use `npx @insforge/cli db query <sql>` for inspection, targeted SQL checks, schema-cache reloads, and small corrective SQL only when a migration is not appropriate.
 - Inspect current state with `db tables`, `db indexes`, `db policies`, `db triggers`, `db functions`, and `db migrations list`.
 - Reload PostgREST schema cache after schema or policy changes when needed: `npx @insforge/cli db query "NOTIFY pgrst, 'reload schema'"`.
-- For benchmark DB tasks, do all application database work in the `public` schema.
-- Create, alter, drop, grant, revoke, index, trigger, function, view, and policy changes only for `public` application objects.
-- Do not create custom schemas or write to InsForge-managed/system schemas such as `auth`, `storage`, `realtime`, `payments`, `graphql`, `extensions`, `pg_catalog`, `information_schema`, or `system`.
+- For generic application database work, create and modify app-owned objects in the `public` schema.
+- Create, alter, drop, grant, revoke, index, trigger, function, view, and policy changes on `public` application objects.
+- Do not create custom schemas or write to InsForge-managed/system schemas such as `auth`, `storage`, `realtime`, `payments`, `graphql`, `extensions`, `pg_catalog`, `information_schema`, or `system`, unless you are working on that specific feature module and its docs explicitly allow the operation.
 - It is allowed to reference built-in objects such as `auth.users(id)` and `auth.uid()` from public tables or public RLS policies; do not modify those built-in objects.
-- Do not create users, seed business rows, or run application CRUD workflows unless the task explicitly asks for data migration or repair. Benchmark verifiers handle user creation and behavior checks.
+- Do not create users, seed business rows, or run application CRUD workflows unless the user request explicitly asks for data migration, repair, or test setup.
 
 ## RLS Guidance
 
