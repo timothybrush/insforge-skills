@@ -61,8 +61,8 @@ Use `db query` for:
 - backfilling or correcting rows in `public`
 - one-off row updates in `public`
 
-Avoid using `db query` as an incremental DDL workflow. For schema, RLS, grants,
-triggers, functions, indexes, and extensions, create one migration and apply it.
+For schema, RLS, grants, triggers, functions, indexes, and extensions, create a
+migration and apply it.
 
 ## InsForge SQL References
 
@@ -87,4 +87,4 @@ npx @insforge/cli db query "UPDATE posts SET status = 'draft' WHERE status IS NU
 ## Notes
 
 - For schema changes and RLS policy changes, use the migrations workflow in [migrations.md](migrations.md).
-- For advanced RLS patterns (infinite recursion prevention, SECURITY DEFINER, performance), see [rls.md](rls.md).
+- For advanced access-control patterns (RLS recursion prevention, SECURITY DEFINER, performance), see [access-control.md](access-control.md).

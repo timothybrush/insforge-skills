@@ -27,8 +27,8 @@ When the project is already linked, use the current linked project. Run login, p
 
 - Prefer `npx @insforge/cli db migrations new <name>` plus a migration SQL file for schema, grants, indexes, triggers, functions, and RLS policy changes.
 - Apply migrations with `npx @insforge/cli db migrations up --all`.
-- For new schema work, design the SQL first and apply it in one migration when practical. Avoid running one `db query` per DDL statement.
-- Do not run `--version`, `--help`, migration history commands, or broad schema inspection as a routine first step. Use targeted inspection only when existing state is unknown or a command fails.
+- For new schema work, group related DDL into one migration when practical.
+- Use targeted inspection when existing state is unknown or a command fails.
 - Use `npx @insforge/cli db query <sql>` for targeted inspection and small corrective row/data SQL only when a migration is not appropriate.
 - For generic application database work, create and modify app-owned objects in the `public` schema.
 - Create, alter, drop, grant, revoke, index, trigger, function, view, and policy changes on `public` application objects.
@@ -55,6 +55,6 @@ For counters, balances, latest pointers, append-only history, state transitions,
 - `references/database/migrations.md` - migration file creation and apply workflow.
 - `references/database/query.md` - raw SQL execution and targeted inspection.
 - `references/database/integrity.md` - constraints, triggers, derived state, lifecycle guards, append-only history, and server-maintained fields.
-- `references/database/rls.md` - InsForge/Postgres RLS patterns, recursion avoidance, privileges, and policy guidance.
+- `references/database/access-control.md` - InsForge/Postgres access-control patterns, RLS recursion avoidance, privileges, and policy guidance.
 - `references/database/vector.md` - pgvector extension, vector schema, distance operators, indexes, and vector search SQL/RPC patterns.
 - `references/database/export.md` / `references/database/import.md` - schema or data import/export tasks.

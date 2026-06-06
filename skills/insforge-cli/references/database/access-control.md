@@ -1,4 +1,4 @@
-# PostgreSQL Row Level Security (RLS) for InsForge
+# Database Access Control for InsForge
 
 ## Overview
 
@@ -30,7 +30,7 @@ For generic application database work, create and modify app-owned objects in th
 - Do not create custom schemas or write to InsForge-managed/system schemas such as `auth`, `storage`, `realtime`, `payments`, `graphql`, `extensions`, `pg_catalog`, `information_schema`, or `system`, unless you are working on that specific feature module and its docs explicitly allow the operation.
 - It is allowed to reference built-in objects such as `auth.users(id)` and `auth.uid()` from public tables or public RLS policies; do not modify those built-in objects.
 - Put RLS helper functions in `public` and schema-qualify references such as `public.team_members` and `auth.uid()`.
-- Do not manually change `search_path`; InsForge migrations already run against `public`.
+- InsForge migrations already run against `public`; schema-qualified references keep helper functions explicit.
 
 Managed table RLS belongs to the corresponding storage, realtime, or payments feature context. Use those feature docs when the task is specifically about those modules.
 
@@ -149,7 +149,7 @@ $$ LANGUAGE sql STABLE SECURITY DEFINER;
 - [ ] Every helper function that queries RLS-enabled tables is `SECURITY DEFINER`
 - [ ] Helper functions and policies schema-qualify app tables/functions with `public.` and built-ins with their managed schema, such as `auth.uid()`
 - [ ] No circular chains: table A RLS → table B RLS → table A RLS
-- [ ] If recursion or bad plans are suspected, use targeted `EXPLAIN` instead of broad schema inspection
+- [ ] If recursion or bad plans are suspected, use targeted `EXPLAIN`
 
 ### 2. Missing USING or WITH CHECK (HIGH)
 
