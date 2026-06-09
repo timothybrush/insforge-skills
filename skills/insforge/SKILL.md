@@ -1,7 +1,7 @@
 ---
 name: insforge
 description: >-
-  Use this skill when writing app code with InsForge or @insforge/sdk: database CRUD, auth, storage uploads/storage RLS, functions, OpenRouter AI, realtime, emails, Stripe checkout, subscriptions, customer portal flows, or pointing S3-compatible tooling (aws CLI, AWS SDKs, rclone, Terraform, boto3) at InsForge Storage. Trigger on requests like add auth, fetch data, upload files, make a bucket public, add checkout, sell subscriptions, or send email. For infrastructure, SQL migrations, CLI commands, or Stripe key/catalog setup, use insforge-cli instead.
+  Use this skill when writing app code with InsForge or @insforge/sdk: database CRUD, auth, storage uploads/storage RLS, functions, OpenRouter AI, realtime, emails, Stripe or Razorpay payments, or pointing S3-compatible tooling (aws CLI, AWS SDKs, rclone, Terraform, boto3) at InsForge Storage. Trigger on requests like add auth, fetch data, upload files, make a bucket public, add checkout, sell subscriptions, or send email. For infrastructure, SQL migrations, CLI commands, or payment provider setup, use insforge-cli instead.
 license: MIT
 metadata:
   author: insforge
@@ -12,7 +12,7 @@ metadata:
 
 # InsForge App Integration Skill
 
-This skill covers application code and integration work with InsForge, primarily through `@insforge/sdk`. For backend infrastructure operations (creating tables, inspecting schema, deploying functions, secrets, managing storage buckets, configuring Stripe keys/catalog, website deployments, cron job and schedules, logs, etc.), use the **insforge-cli** skill.
+This skill covers **client-side SDK integration** using `@insforge/sdk`. For backend infrastructure operations (creating tables, inspecting schema, deploying functions, secrets, managing storage buckets, configuring payment provider keys/catalog, website deployments, cron job and schedules, logs, etc.), use the **insforge-cli** skill.
 
 ## Quick Setup
 
@@ -120,7 +120,8 @@ const admin = createAdminClient({
 | **AI**        | [ai/overview.md](ai/overview.md)                             |
 | **Real-time** | [realtime/sdk-integration.md](realtime/sdk-integration.md)   |
 | **Email**     | [email/sdk-integration.md](email/sdk-integration.md)         |
-| **Payments**  | [payments/sdk-integration.md](payments/sdk-integration.md)   |
+| **Payments: Stripe** | [payments/stripe.md](payments/stripe.md)             |
+| **Payments: Razorpay** | [payments/razorpay.md](payments/razorpay.md)       |
 
 ### What Each Module Covers
 
@@ -132,7 +133,8 @@ const admin = createAdminClient({
 | **Functions** | Invoke edge functions                                                                                         |
 | **AI**        | OpenRouter AI calls for chat, images, video, audio, embeddings, and model discovery                           |
 | **Email**     | Send custom transactional HTML emails (welcome, newsletter, notifications)                                    |
-| **Payments**  | Stripe Checkout Sessions, subscriptions, and Billing Portal redirects                                         |
+| **Payments: Stripe** | Stripe Checkout Sessions, subscriptions, and Billing Portal redirects                                  |
+| **Payments: Razorpay** | Razorpay Orders, Subscriptions, Checkout.js, and subscription management                               |
 | **Real-time** | Connect, subscribe, publish events, and track presence snapshots plus join/leave deltas                       |
 
 ### Guides
@@ -149,11 +151,23 @@ const admin = createAdminClient({
 | [ai/audio.md](ai/audio.md)                                                                                     | Speech-to-text, text-to-speech, and storing audio assets/transcripts with InsForge                                                                                                                                                                                                                                                                                                                     |
 | [ai/embeddings-and-rag.md](ai/embeddings-and-rag.md)                                                           | Generating embeddings through OpenRouter, storing them in pgvector, and wiring up a basic RAG pipeline                                                                                                                                                                                                                                                                                                 |
 | [ai/models-list.md](ai/models-list.md)                                                                         | Discovering OpenRouter model IDs, modalities, parameters, pricing, and embedding dimensions                                                                                                                                                                                                                                                                                                            |
-| [payments](../insforge-cli/references/payments.md)                                                             | Configuring Stripe keys, syncing catalog, creating products/prices, webhooks, and portal RLS before app integration                                                                                                                                                                                                                                                                                    |
+| [payments](../insforge-cli/references/payments/overview.md)                                                    | Configuring Stripe/Razorpay keys, syncing provider catalog, setting up webhooks, and writing payment RLS before app integration                                                                                                                                                                                                                                                                        |
 
-### Building Checkout for a New App
+### Building Payments for a New App
 
-Before integrating payments, make sure a Stripe key is configured. Run `npx @insforge/cli payments status`. If it shows `unconfigured`, ask the user for the Stripe key first. See the **insforge-cli** skill's [payments](../insforge-cli/references/payments.md) reference.
+First choose the provider. There is no generic app payments guide:
+
+- For Stripe Checkout, subscriptions, and Billing Portal, load [payments/stripe.md](payments/stripe.md).
+- For Razorpay Orders, Subscriptions, Checkout.js, and cancel/pause/resume flows, load [payments/razorpay.md](payments/razorpay.md).
+
+Before writing app code, check provider setup with the **insforge-cli** payments references:
+
+```bash
+npx @insforge/cli payments stripe status
+npx @insforge/cli payments razorpay status
+```
+
+If the chosen provider is unconfigured, ask the developer/admin to configure that provider first.
 
 ### Real-time Backend Setup
 
@@ -198,7 +212,8 @@ All SDK methods return `{ data, error }`.
 | `insforge.ai`        | Deprecated fallback only: `.chat.completions.create()`, `.images.generate()`, `.embeddings.create()` |
 | `insforge.realtime`  | `.connect()`, `.subscribe()`, `.publish()`, `.on()`, `.disconnect()`                                 |
 | `insforge.emails`    | `.send({ to, subject, html, cc?, bcc?, from?, replyTo? })`                                           |
-| `insforge.payments`  | `.createCheckoutSession()`, `.createCustomerPortalSession()`                                         |
+| `insforge.payments.stripe` | `.createCheckoutSession()`, `.createCustomerPortalSession()` |
+| `insforge.payments.razorpay` | `.createOrder()`, `.verifyOrder()`, `.createSubscription()`, `.verifySubscription()`, `.cancelSubscription()`, `.pauseSubscription()`, `.resumeSubscription()` |
 
 ## Important Notes
 
@@ -207,8 +222,8 @@ All SDK methods return `{ data, error }`.
 - **Storage**: Save both `url` AND `key` to database for download/delete operations
 - **Functions invoke URL**: `/functions/{slug}`
 - **Email delivery**: Auth emails (signup verification, password reset, magic links, invites) ship on **every plan**. Custom email via `insforge.emails.send()` ships on **every paid plan**. Use the platform-managed delivery path; custom sender domain is dashboard config. See [email/sdk-integration.md](email/sdk-integration.md).
-- **Payments**: Configure Stripe keys/catalog with `npx @insforge/cli payments ...` first; frontend code only creates Checkout/Portal sessions.
-- **Payment RLS**: Before subscription checkout or Billing Portal UI, add app-specific RLS on `payments.checkout_sessions` and `payments.customer_portal_sessions`. Checkout creation needs `INSERT`; checkout requests with `idempotencyKey` also need matching `SELECT` on `payments.checkout_sessions`.
+- **Payments**: Configure provider keys/catalog with `npx @insforge/cli payments <provider> ...` first; frontend code uses provider-scoped SDK modules.
+- **Payment RLS**: Before payment UI, add app-specific RLS on provider runtime tables. Stripe uses `payments.stripe_checkout_sessions` and `payments.stripe_customer_portal_sessions`; Razorpay uses `payments.razorpay_orders` and `payments.razorpay_subscriptions`. Durable fulfillment triggers go on `payments.webhook_events`, not success URLs, Checkout callbacks, or `payments.transactions`.
 - **Use Tailwind CSS v3.4**
 - **Always local build before deploy**: Prevents wasted build resources and faster debugging
 - **SDK package**: Use `@insforge/sdk` directly for all features including authentication.
