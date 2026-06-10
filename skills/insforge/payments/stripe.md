@@ -184,6 +184,10 @@ InsForge's Stripe managed event set:
 
 Create app-owned fulfillment triggers on `payments.webhook_events`, not on success URLs and not on `payments.transactions`.
 
+Webhook events are verified and processed independently. InsForge commits all rows derived from an event before marking that event `processed`, but Stripe gives no ordering guarantee across events: `invoice.paid` can be processed before `checkout.session.completed`, so rows created by another event (such as `payments.customer_mappings`) may not exist yet when a trigger fires. Resolve the billing subject from the event payload first and use `payments.customer_mappings` only as a fallback. Never let fulfillment skip silently: log or dead-letter events that cannot be resolved.
+
+### One-Time Fulfillment
+
 ```sql
 CREATE OR REPLACE FUNCTION public.fulfill_stripe_paid_order()
 RETURNS TRIGGER AS $$
@@ -214,6 +218,59 @@ CREATE TRIGGER fulfill_stripe_paid_order_from_webhook
   EXECUTE FUNCTION public.fulfill_stripe_paid_order();
 ```
 
+### Subscription Fulfillment
+
+Subscription events do not carry the app `metadata` sent at checkout. Resolve the billing subject from the subscription metadata embedded in the event payload (InsForge stamps `insforge_subject_type` and `insforge_subject_id` at checkout, and Stripe copies it onto every invoice), then fall back to `payments.customer_mappings`:
+
+```sql
+CREATE OR REPLACE FUNCTION public.grant_subscription_access()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_subject_type TEXT;
+  v_subject_id TEXT;
+BEGIN
+  IF NEW.provider = 'stripe'
+     AND NEW.event_type = 'invoice.paid'
+     AND NEW.processing_status = 'processed' THEN
+    v_subject_type := NEW.payload -> 'data' -> 'object' -> 'parent'
+                      -> 'subscription_details' -> 'metadata' ->> 'insforge_subject_type';
+    v_subject_id := NEW.payload -> 'data' -> 'object' -> 'parent'
+                    -> 'subscription_details' -> 'metadata' ->> 'insforge_subject_id';
+
+    IF v_subject_id IS NULL THEN
+      SELECT m.subject_type, m.subject_id
+      INTO v_subject_type, v_subject_id
+      FROM payments.customer_mappings m
+      WHERE m.provider = NEW.provider
+        AND m.environment = NEW.environment
+        AND m.provider_customer_id = NEW.payload -> 'data' -> 'object' ->> 'customer';
+    END IF;
+
+    IF v_subject_id IS NULL THEN
+      RAISE WARNING 'Stripe event % has no resolvable billing subject', NEW.provider_event_id;
+      RETURN NEW;
+    END IF;
+
+    INSERT INTO public.team_entitlements (team_id, plan, active, updated_at)
+    VALUES (v_subject_id::uuid, 'pro', true, NOW())
+    ON CONFLICT (team_id) DO UPDATE SET
+      plan = EXCLUDED.plan,
+      active = true,
+      updated_at = NOW();
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER grant_subscription_access_from_stripe_webhook
+  AFTER INSERT OR UPDATE ON payments.webhook_events
+  FOR EACH ROW
+  EXECUTE FUNCTION public.grant_subscription_access();
+```
+
+Adjust the entitlement table to the billing subject type used at checkout. Handle revocation the same way from `customer.subscription.deleted` and `customer.subscription.updated` (`payload -> 'data' -> 'object' -> 'metadata'` holds the subject keys on subscription events).
+
 Keep trigger functions idempotent. For external side effects such as email or warehouse work, write an app-owned outbox row and process it from an edge function or worker.
 
 ## Runtime State
@@ -237,3 +294,4 @@ Use `payments.transactions` only for admin/debug dashboards and provider referen
 | Starting shared-subject checkout before RLS | Add policies on `payments.stripe_checkout_sessions` first |
 | Idempotent retry fails after adding only `INSERT` | Add matching `SELECT` for retryable checkout rows |
 | Trying to update a Stripe Price amount | Create a new Price and archive the old one |
+| Resolving subscription subjects only via `payments.customer_mappings` | Read `insforge_subject_*` from the event payload first; events from other types may not have created the mapping yet |

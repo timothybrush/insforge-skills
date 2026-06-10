@@ -168,6 +168,8 @@ CREATE TRIGGER fulfill_stripe_billing_event
 
 Make fulfillment idempotent. For email, warehouse, CRM, or other external side effects, write an app-owned outbox row and process it asynchronously.
 
+Stripe gives no ordering guarantee across events: `invoice.paid` can be processed before `checkout.session.completed` creates the `payments.customer_mappings` row. For subscription events, resolve the billing subject from the payload first (`payload -> 'data' -> 'object' -> 'parent' -> 'subscription_details' -> 'metadata' ->> 'insforge_subject_id'` on invoices) and use `payments.customer_mappings` only as a fallback. See the `insforge` app-integration skill's Stripe guide for a complete subscription fulfillment trigger.
+
 ### Subscription Cancellation Fields
 
 When mirroring subscription state into app-owned tables, store `cancel_at` as well as boolean flags. Stripe can schedule future cancellation by setting `cancel_at` while `cancel_at_period_end` remains `false`; `canceled_at` can be the cancellation request time, not the access end time. Use `status <> 'canceled' AND cancel_at IS NOT NULL` for "will cancel".

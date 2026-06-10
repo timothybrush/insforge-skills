@@ -93,6 +93,8 @@ CREATE TRIGGER fulfill_from_payment_webhook
 
 Make trigger functions idempotent. For external side effects such as email, shipping, CRM, or warehouse work, write an app-owned outbox row and process it from an edge function or worker.
 
+Webhook events are processed independently with no cross-event ordering guarantee. Rows derived from an event are committed before that event is marked `processed`, but rows owned by other events — such as `payments.customer_mappings`, which checkout completion creates — may not exist yet when a trigger fires. Resolve billing subjects from the event payload first and treat lookups into rows owned by other events as fallbacks.
+
 ## Managed Tables
 
 Provider-specific authorization tables:
