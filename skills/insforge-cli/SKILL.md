@@ -1,7 +1,7 @@
 ---
 name: insforge-cli
 description: >-
-  Use this skill whenever someone needs a backend, or a task touches InsForge backend or cloud infrastructure through the InsForge CLI: projects, SQL, migrations, RLS policies, functions, storage, deployments, compute, secrets, config, schedules, logs, diagnostics, import/export, AI/OpenRouter setup, Stripe payments, backend branches, or CLI docs. For app code with InsForge or @insforge/sdk, use the insforge app-integration skill instead.
+  Use this skill whenever someone needs a backend, or a task touches InsForge backend or cloud infrastructure through the InsForge CLI: projects, SQL, migrations, RLS policies, functions, storage, deployments, compute, secrets, config, schedules, logs, diagnostics, import/export, AI/OpenRouter setup, Stripe/Razorpay payments, backend branches, or CLI docs. For app code with InsForge or @insforge/sdk, use the insforge app-integration skill instead.
 license: MIT
 metadata:
   author: insforge
@@ -67,7 +67,7 @@ If not authenticated, run `npx @insforge/cli login`. If no project is linked, us
 | Realtime backend setup                                                                             | `db` migrations                                 | `references/realtime.md`                                                                    |
 | Edge functions                                                                                     | `functions`                                     | `references/functions-deploy.md`                                                            |
 | AI/OpenRouter key setup                                                                            | `ai setup`                                      | this file                                                                                   |
-| Stripe keys, catalog sync, webhooks                                                                | `payments`                                      | `references/payments.md`                                                                    |
+| Stripe/Razorpay keys, catalog sync, webhooks                                                       | `payments`                                      | `references/payments/overview.md`                                                           |
 | Frontend deployments                                                                               | `deployments`                                   | `references/deployments-deploy.md`                                                          |
 | Backend containers/services                                                                        | `compute`                                       | `references/compute-deploy.md`                                                              |
 | Secrets/env vars                                                                                   | `secrets`, deployment/compute env commands      | this file                                                                                   |
@@ -169,13 +169,16 @@ Create channel patterns, app-table publish triggers, and channel/message RLS thr
 
 ## Payments
 
-Use `payments` for Stripe backend setup and catalog sync. See `references/payments.md`.
+Use `payments` for Stripe/Razorpay backend setup and catalog sync. See `references/payments/overview.md`.
 
-- Configure Stripe keys with `payments config set`.
-- Run `payments sync` before relying on mirrored catalog data.
-- Configure managed webhooks with `payments webhooks configure`.
+- Payments are provider-specific: use `payments stripe ...` or `payments razorpay ...` explicitly.
+- Configure provider keys with `payments <provider> config set`; setting keys automatically syncs provider state when the key or account changes.
+- Check key/account/sync/webhook health with `payments <provider> status`.
+- Run `payments <provider> sync` to manually refresh or retry mirrored provider data.
+- Stripe uses Products/Prices and supports managed webhook registration; Razorpay uses Items/Plans/Orders and requires manual webhook setup in the Razorpay Dashboard.
 - Prefer test mode while building. Use live mode only after explicit user approval.
-- If the backend reports payments unavailable, ask the user/admin to enable or upgrade payments. Do not work around it by storing Stripe keys as generic secrets or embedding Stripe secret keys in app code.
+- If the backend reports payments unavailable, ask the user/admin to enable or upgrade payments. Do not work around it by storing provider keys as generic secrets or embedding payment secret keys in app code.
+- Load `references/payments/stripe.md` or `references/payments/razorpay.md` before provider-specific setup.
 
 Runtime checkout, subscriptions, customer portal flows, and app code belong in the `insforge` app-integration skill.
 

@@ -29,7 +29,7 @@ Build full-stack applications with InsForge. This skill provides comprehensive g
 - **Functions**: Serverless function deployment and invocation
 - **AI**: OpenRouter via project Model Gateway key setup, chat completions, image/video/audio generation, embeddings, and model discovery
 - **Real-time**: WebSocket connections, subscriptions, event publishing
-- **Payments**: Stripe Checkout Sessions, subscriptions, and Billing Portal redirects
+- **Payments**: Stripe Checkout/Billing Portal and Razorpay Orders/Subscriptions
 - **Deployments**: Frontend app deployment to InsForge hosting
 
 **Key distinction**: Backend infrastructure uses the CLI skill. Most client integration uses `@insforge/sdk`; new AI features use OpenRouter APIs with an API key set up by `npx @insforge/cli ai setup`.
@@ -48,7 +48,7 @@ Create and manage InsForge projects from the command line. This skill provides c
 - **Storage**: Bucket and object management (upload, download, list)
 - **Deployments**: Frontend app deployment and status tracking
 - **AI**: OpenRouter key setup with `npx @insforge/cli ai setup`
-- **Payments**: Stripe key setup, catalog sync, products/prices, webhooks
+- **Payments**: Stripe/Razorpay key setup, catalog sync, provider webhooks
 - **Secrets**: Create, update, and manage project secrets
 - **CI/CD**: Non-interactive workflows using environment variables
 
@@ -96,6 +96,7 @@ Once installed, AI agents can access InsForge-specific guidance when:
 - Integrating `@insforge/sdk` into frontend applications
 - Implementing database CRUD operations with proper RLS
 - Building authentication flows with OAuth and email verification
+- Adding Stripe or Razorpay payment flows
 - Deploying serverless functions and frontend apps
 
 ## Skill Structure
@@ -128,7 +129,8 @@ skills/
 │   ├── realtime/
 │   │   └── sdk-integration.md
 │   ├── payments/
-│   │   └── sdk-integration.md
+│   │   ├── stripe.md
+│   │   └── razorpay.md
 │   └── email/
 │       └── sdk-integration.md
 ├── insforge-cli/
@@ -150,7 +152,10 @@ skills/
 │       │   ├── merge.md
 │       │   └── reset.md
 │       ├── functions-deploy.md
-│       ├── payments.md
+│       ├── payments/
+│       │   ├── overview.md
+│       │   ├── stripe.md
+│       │   └── razorpay.md
 │       └── deployments-deploy.md
 ├── insforge-debug/
 │   └── SKILL.md              # Debug & diagnostics skill
@@ -171,7 +176,7 @@ skills/
 
 - **`sdk-integration.md`**: How to use app-facing SDKs/APIs in application code.
 - **AI capability guides**: `ai/overview.md` links to smaller OpenRouter-focused guides for chat completions, image generation, video generation, audio, embeddings/RAG, and model discovery.
-- **Specialized guides**: Focused references such as `references/database/access-control.md`, `references/database/integrity.md`, `storage/postgres-rls.md`, `s3-gateway.md`, `references/database/vector.md`, or provider-specific integration guides.
+- **Specialized guides**: Focused references such as `references/database/access-control.md`, `references/database/integrity.md`, `storage/postgres-rls.md`, `s3-gateway.md`, `references/database/vector.md`, payment provider guides, or other provider-specific integration guides.
 
 ## Contributing
 
