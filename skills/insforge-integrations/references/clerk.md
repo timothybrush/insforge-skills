@@ -102,7 +102,7 @@ export default function Page() {
 - In a `useEffect` keyed on `isSignedIn`, call `getToken({ template: 'insforge' })` and pipe the result into `client.getHttpClient().setAuthToken(token)`
 - Clerk JWT templates default to **60-second expiry** — refresh the token on a ~50-second interval while the user is signed in; clear the token on sign-out
 - The template name `'insforge'` must match the Clerk dashboard exactly
-- `@insforge/sdk`'s `edgeFunctionToken` config field is a **static string**, not a function — it cannot auto-refresh on its own, which is why we use `setAuthToken()` imperatively
+- `@insforge/sdk`'s `accessToken` config field (deprecated alias: `edgeFunctionToken`) is a **static string**, not a function — it cannot auto-refresh on its own, which is why we use `setAuthToken()` imperatively
 - This hook uses Clerk hooks, so the file must start with `'use client'`
 
 ```tsx
@@ -191,7 +191,7 @@ $$;
 
 | Mistake | Solution |
 |---------|----------|
-| ❌ Passing an async function as `edgeFunctionToken` | ✅ SDK accepts only a static string there — use `setAuthToken()` from the HTTP client instead |
+| ❌ Passing an async function as `accessToken` | ✅ SDK accepts only a static string there — use `setAuthToken()` from the HTTP client instead |
 | ❌ Setting the token only once on mount | ✅ Refresh on a ~50s interval — Clerk JWT templates expire in 60s by default |
 | ❌ Adding `sub` or `iss` to the JWT template | ✅ These are reserved claims, auto-included by Clerk |
 | ❌ Using `auth.uid()` for RLS policies | ✅ Use `requesting_user_id()` — Clerk IDs are strings, not UUIDs |
