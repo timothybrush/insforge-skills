@@ -29,7 +29,9 @@ agent-skills/
 │           │   ├── overview.md
 │           │   ├── stripe.md
 │           │   └── razorpay.md
-│           ├── deployments-deploy.md
+│           ├── deployments/
+│           │   ├── deploy.md
+│           │   └── domains.md
 │           └── ...
 ├── AGENTS.md               # This file
 ├── CONTRIBUTING.md         # Contribution guidelines

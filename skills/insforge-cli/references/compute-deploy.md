@@ -18,7 +18,7 @@ Deploy a backend service. Two modes:
 
 > Looking to deploy a **frontend** (static site / SPA / Next.js to Vercel)? Use
 > `npx @insforge/cli deployments deploy` instead — see
-> [deployments-deploy.md](deployments-deploy.md).
+> [deployments/deploy.md](deployments/deploy.md).
 
 ## Two modes
 
