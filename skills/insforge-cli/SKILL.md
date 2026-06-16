@@ -48,6 +48,8 @@ Use this skill whenever someone needs a backend, or when managing InsForge backe
 | `INSFORGE_PROJECT_ID`   | Override linked project ID         |
 | `INSFORGE_EMAIL`        | Email for non-interactive login    |
 | `INSFORGE_PASSWORD`     | Password for non-interactive login |
+| `CLOUDFLARE_ACCOUNT_ID` | Override connected Cloudflare account for domain commands |
+| `CLOUDFLARE_ACCESS_TOKEN` | Override stored Cloudflare OAuth access token for domain commands |
 
 ## Connection Setup
 
@@ -69,6 +71,7 @@ If not authenticated, run `npx @insforge/cli login`. If no project is linked, us
 | AI/OpenRouter key setup                                                                            | `ai setup`                                      | this file                                                                                   |
 | Stripe/Razorpay keys, catalog sync, webhooks                                                       | `payments`                                      | `references/payments/overview.md`                                                           |
 | Frontend deployments                                                                               | `deployments`                                   | `references/deployments-deploy.md`                                                          |
+| Custom domains, Cloudflare Registrar, DNS sync, SSL verification                                    | `domains`                                       | this file                                                                                   |
 | Backend containers/services                                                                        | `compute`                                       | `references/compute-deploy.md`                                                              |
 | Secrets/env vars                                                                                   | `secrets`, deployment/compute env commands      | this file                                                                                   |
 | Scheduled jobs                                                                                     | `schedules`                                     | `references/schedules.md`                                                                   |
@@ -181,6 +184,37 @@ Use `payments` for Stripe/Razorpay backend setup and catalog sync. See `referenc
 - Load `references/payments/stripe.md` or `references/payments/razorpay.md` before provider-specific setup.
 
 Runtime checkout, subscriptions, customer portal flows, and app code belong in the `insforge` app-integration skill.
+
+## Domains
+
+Use `domains` when a user wants to search, buy, attach, configure, verify, or resume custom domain setup through the InsForge CLI.
+
+Cloudflare connection:
+
+- `npx @insforge/cli domains cloudflare login` - open Cloudflare OAuth and save the selected Cloudflare account plus OAuth token locally.
+- OAuth should provide enough account context for the CLI to choose the Cloudflare account after authorization. If account discovery returns no accounts, treat it as an OAuth client scope/configuration problem, not as a cue to ask users for API tokens.
+- `--account-id <id>` is an automation override only; do not make it the normal interactive product flow.
+- `--skip-browser` prints the OAuth URL instead of trying to open a browser.
+- Do not ask users to create or paste Cloudflare API tokens for the normal flow.
+
+Split workflow:
+
+- `npx @insforge/cli domains search <query> [--limit <n>] [--tlds com,dev]` - search Cloudflare Registrar. `--tlds` is only a local filter; do not assume a fixed TLD allowlist.
+- `npx @insforge/cli domains check <domain...>` - check real-time availability and pricing.
+- `npx @insforge/cli domains buy <domain>` - register in the connected Cloudflare account. Registration enables auto-renew and WHOIS redaction.
+- `npx @insforge/cli domains attach <domain>` - attach to the linked InsForge deployment.
+- `npx @insforge/cli domains dns sync <domain>` - write InsForge/Vercel DNS records to Cloudflare DNS.
+- `npx @insforge/cli domains verify <domain>` - trigger InsForge custom-domain verification.
+- `npx @insforge/cli domains status <domain> [--cloudflare]` - inspect InsForge status and optionally Cloudflare registration status.
+- `npx @insforge/cli domains resume <domain>` - continue attach/DNS/verify after async registration finishes.
+- `npx @insforge/cli domains buy-and-attach <domain>` - run register, attach, DNS sync, and verify in one flow.
+
+Purchase safety:
+
+- Never rely on global `--yes` for domain purchases. Non-interactive registration requires all explicit flags:
+  `--confirm-domain`, `--confirm-price`, `--confirm-currency`, `--confirm-cloudflare-billing`, and `--confirm-non-refundable`.
+- Successful domain registrations may be non-refundable. Confirm the exact domain and Cloudflare-returned price before buying.
+- Cloudflare decides which TLDs are programmatically registrable. If a TLD is unsupported, report Cloudflare's availability/reason instead of inventing another provider flow.
 
 ## Deployments
 
