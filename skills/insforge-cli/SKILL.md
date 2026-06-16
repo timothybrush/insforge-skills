@@ -192,7 +192,7 @@ Use `domains` when a user wants to search, buy, attach, configure, verify, or re
 Cloudflare connection:
 
 - `npx @insforge/cli domains cloudflare login` - open Cloudflare OAuth and save the selected Cloudflare account plus OAuth token locally.
-- OAuth should provide enough account context for the CLI to choose the Cloudflare account after authorization. If account discovery returns no accounts, treat it as an OAuth client scope/configuration problem, not as a cue to ask users for API tokens.
+- OAuth should provide enough account context for the CLI to choose the Cloudflare account after authorization. Cloudflare account discovery requires the `account-settings.read` OAuth scope; `user-details.read` alone only allows `/user` and does not make `/accounts` return usable account IDs. If account discovery returns no accounts, treat it as an OAuth client scope/configuration problem, not as a cue to ask users for API tokens.
 - `--account-id <id>` is an automation override only; do not make it the normal interactive product flow.
 - `--skip-browser` prints the OAuth URL instead of trying to open a browser.
 - Do not ask users to create or paste Cloudflare API tokens for the normal flow.
