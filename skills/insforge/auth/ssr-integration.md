@@ -48,7 +48,7 @@ import { createBrowserClient } from '@insforge/sdk/ssr'
 export const insforge = createBrowserClient()
 ```
 
-`createBrowserClient()` reads `insforge_access_token`, uses it for SDK calls and Realtime, and refreshes through `/api/auth/refresh` when the access token is missing, expired, near expiry, or rejected with an auth-expired response.
+`createBrowserClient()` reads `insforge_access_token`, uses it for SDK calls and Realtime, and refreshes through `/api/auth/refresh` when the access token is missing, expired, near expiry, or rejected with an auth-expired response. Its TypeScript auth surface is read-only (`getCurrentUser()`, `getProfile()`, and `getPublicAuthConfig()`); perform sign-in, sign-up, sign-out, OAuth exchange, ID-token sign-in, and email verification on the server with `createAuthActions()`.
 
 ## Server Client
 
@@ -123,35 +123,59 @@ For `middleware.ts`, export the same handler body as `middleware`.
 
 ## Sign-In Route Or Server Action
 
-Because the refresh token is httpOnly, sign-in and sign-up flows that establish a session should run where cookies can be written: Route Handlers or Server Actions.
+Because the refresh token is httpOnly, sign-in, sign-up, sign-out, OAuth exchange, ID-token sign-in, and email verification flows that establish or clear a session should run where cookies can be written. Prefer `createAuthActions()` for these auth mutations.
+
+For Next.js 14+ Server Actions:
+
+```typescript
+// app/actions.ts
+'use server'
+
+import { cookies } from 'next/headers'
+import { createAuthActions } from '@insforge/sdk/ssr'
+
+export async function signIn(formData: FormData) {
+  const auth = createAuthActions({ cookies: await cookies() })
+
+  return auth.signInWithPassword({
+    email: String(formData.get('email')),
+    password: String(formData.get('password'))
+  })
+}
+
+export async function signOut() {
+  const auth = createAuthActions({ cookies: await cookies() })
+  return auth.signOut()
+}
+```
+
+For Route Handlers, pass separate request and response cookie stores:
 
 ```typescript
 // app/api/auth/sign-in/route.ts
-import { NextResponse } from 'next/server'
-import { createServerClient, setAuthCookies } from '@insforge/sdk/ssr'
+import { NextRequest, NextResponse } from 'next/server'
+import { createAuthActions } from '@insforge/sdk/ssr'
 
-export async function POST(request: Request) {
-  const client = createServerClient()
-  const { data, error } = await client.auth.signInWithPassword(await request.json())
+export async function POST(request: NextRequest) {
+  const response = NextResponse.json({ ok: true })
+  const auth = createAuthActions({
+    requestCookies: request.cookies,
+    responseCookies: response.cookies
+  })
 
-  if (error || !data?.accessToken) {
-    return Response.json(
+  const { data, error } = await auth.signInWithPassword(await request.json())
+  if (error || !data?.user) {
+    return NextResponse.json(
       { error: error?.error ?? 'AUTH_UNAUTHORIZED', message: error?.message ?? 'Sign in failed' },
       { status: error?.statusCode ?? 401 }
     )
   }
 
-  const response = NextResponse.json({ user: data.user })
-  setAuthCookies(response.cookies, {
-    accessToken: data.accessToken,
-    refreshToken: data.refreshToken
-  })
-
-  return response
+  return NextResponse.json({ user: data.user }, { headers: response.headers })
 }
 ```
 
-For Server Actions, call the same SDK methods and `setAuthCookies()` with the response/cookie surface available in that framework. In Next.js Route Handlers, pass `response.cookies`.
+`createAuthActions()` wraps `createServerClient()` and writes or clears `insforge_access_token` / `insforge_refresh_token` using the cookie stores you pass. Keep refresh separate: `/api/auth/refresh` should still use `createRefreshAuthRouter()` or `refreshAuth()`.
 
 ## OAuth In Next.js
 
@@ -201,7 +225,7 @@ Set `redirectTo` to your app URL. The backend appends `?insforge_code=<code>` an
 // app/api/auth/callback/route.ts
 import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient, setAuthCookies } from '@insforge/sdk/ssr'
+import { createAuthActions } from '@insforge/sdk/ssr'
 
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get('insforge_code')
@@ -220,8 +244,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL('/login?error=missing_verifier', request.url))
   }
 
-  const client = createServerClient()
-  const { data, error } = await client.auth.exchangeOAuthCode(code, codeVerifier)
+  const response = NextResponse.redirect(new URL('/dashboard', request.url))
+  const auth = createAuthActions({
+    requestCookies: request.cookies,
+    responseCookies: response.cookies
+  })
+  const { data, error } = await auth.exchangeOAuthCode(code, codeVerifier)
   if (error || !data?.accessToken) {
     if (error) {
       console.error('OAuth code exchange failed', error)
@@ -229,11 +257,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL('/login?error=exchange_failed', request.url))
   }
 
-  const response = NextResponse.redirect(new URL('/dashboard', request.url))
-  setAuthCookies(response.cookies, {
-    accessToken: data.accessToken,
-    refreshToken: data.refreshToken
-  })
   response.cookies.delete('insforge_code_verifier')
 
   return response
@@ -242,7 +265,7 @@ export async function GET(request: NextRequest) {
 
 ## Storage And Realtime
 
-For browser uploads, downloads, and Realtime subscriptions, use `createBrowserClient()`. Keep the refresh token server-owned and route browser refresh through `/api/auth/refresh`. When the access token expires, the browser client receives a fresh access token, updates the SDK token, and Realtime reconnects with the new token.
+For browser uploads, downloads, and Realtime subscriptions, use `createBrowserClient()`. Keep the refresh token server-owned and route browser refresh through `/api/auth/refresh`. When the access token expires, the browser client receives a fresh access token, updates the SDK token, and Realtime reconnects with the new token. Do not call auth mutations from Client Components; use `createAuthActions()` on the server.
 
 For server-mediated uploads, use a backend route to create a signed upload path or otherwise proxy the operation. Use direct browser SDK upload when the app wants user-scoped Storage/RLS checks and the browser has the access token cookie.
 
@@ -261,8 +284,8 @@ For server-mediated uploads, use a backend route to create a signed upload path 
 | Creating separate cookie names across routes | Let `@insforge/sdk/ssr` helpers manage the standard auth cookie names |
 | Hiding the access token from Client Components | Keep `insforge_refresh_token` httpOnly and `insforge_access_token` browser-readable |
 | Missing the browser refresh route | Use `/api/auth/refresh` with `createRefreshAuthRouter()` |
-| Manually guessing cookie lifetimes | Use `setAuthCookies()` so cookie expiry follows JWT `exp` |
-| Appending `Set-Cookie` through `response.headers` in Next.js | Pass `response.cookies` to `setAuthCookies()` |
+| Manually guessing cookie lifetimes | Use `createAuthActions()` or `setAuthCookies()` so cookie expiry follows JWT `exp` |
+| Calling auth mutations from Client Components | Use `createAuthActions()` in Server Actions or Route Handlers |
 | Server Components reading stale cookies | Use `updateSession()` from `@insforge/sdk/ssr/middleware` in Proxy/Middleware before rendering |
 | Client Components creating an unauthenticated SDK client | Use `createBrowserClient()` so the app refresh route can refresh access |
 | Sending OAuth users back to the backend URL | Set `redirectTo` to the app URL where the user lands after auth |
