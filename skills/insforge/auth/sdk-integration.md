@@ -403,9 +403,10 @@ Only render the reset form when `insforge_status=ready` and `token` is present.
 
 5. **Use `@insforge/sdk/ssr` for SSR auth**
    - For Next.js or other SSR frameworks, perform auth mutations where cookies can be written
+   - Use `createAuthActions()` for sign-in, sign-up, sign-out, OAuth initiation/exchange, ID-token sign-in, and email verification flows that create or clear sessions
    - Keep `insforge_refresh_token` httpOnly and server-owned
    - Let `insforge_access_token` be browser-readable so Storage and Realtime can authenticate from Client Components
-   - Use `createServerClient()` for Server Components / Route Handlers and `createBrowserClient()` for Client Components
+   - Use `createServerClient()` for Server Components / Route Handlers and `createBrowserClient()` for Client Components; the SSR browser client exposes read-only auth methods only
    - Add `/api/auth/refresh` with `createRefreshAuthRouter()` and use `updateSession()` from `@insforge/sdk/ssr/middleware` in Proxy/Middleware
    - Use [ssr-integration.md](ssr-integration.md) as the reference implementation
 
@@ -420,7 +421,7 @@ Only render the reset form when `insforge_status=ready` and `token` is present.
 | Treating link verification like code verification | Handle the redirect result and send the user to sign in |
 | Signing in again after code-based `verifyEmail()` | Use the session returned by `verifyEmail()` |
 | Hardcoding OAuth providers | Render providers from `oAuthProviders` |
-| Handling SSR auth like a browser-only flow | Use `@insforge/sdk/ssr` helpers for clients/routes and `@insforge/sdk/ssr/middleware` for Proxy/Middleware session updates |
+| Handling SSR auth like a browser-only flow | Use `createAuthActions()` for auth mutations, `createBrowserClient()` only to consume an existing SSR session, and `@insforge/sdk/ssr/middleware` for Proxy/Middleware session updates |
 | Passing `apiKey` to `createClient()` | Use `createAdminClient({ apiKey })` in trusted server-only code |
 
 ## Conditional Implementation Guide
