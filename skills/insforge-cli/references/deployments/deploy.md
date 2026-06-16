@@ -5,7 +5,7 @@ hosting (via Vercel) from its source directory.
 
 > Looking to deploy a **backend** Docker container (API, worker)? Use
 > `npx @insforge/cli compute deploy` instead — see
-> [compute-deploy.md](compute-deploy.md).
+> [compute-deploy.md](../compute-deploy.md).
 
 ## Syntax
 

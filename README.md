@@ -156,7 +156,9 @@ skills/
 │       │   ├── overview.md
 │       │   ├── stripe.md
 │       │   └── razorpay.md
-│       └── deployments-deploy.md
+│       └── deployments/
+│           ├── deploy.md
+│           └── domains.md
 ├── insforge-debug/
 │   └── SKILL.md              # Debug & diagnostics skill
 └── insforge-integrations/

@@ -68,7 +68,8 @@ If not authenticated, run `npx @insforge/cli login`. If no project is linked, us
 | Edge functions                                                                                     | `functions`                                     | `references/functions-deploy.md`                                                            |
 | AI/OpenRouter key setup                                                                            | `ai setup`                                      | this file                                                                                   |
 | Stripe/Razorpay keys, catalog sync, webhooks                                                       | `payments`                                      | `references/payments/overview.md`                                                           |
-| Frontend deployments                                                                               | `deployments`                                   | `references/deployments-deploy.md`                                                          |
+| Frontend deployments                                                                               | `deployments`                                   | `references/deployments/deploy.md`                                                          |
+| Custom domains, Cloudflare Registrar, DNS sync, SSL verification                                    | `domains`                                       | `references/deployments/domains.md`                                                         |
 | Backend containers/services                                                                        | `compute`                                       | `references/compute-deploy.md`                                                              |
 | Secrets/env vars                                                                                   | `secrets`, deployment/compute env commands      | this file                                                                                   |
 | Scheduled jobs                                                                                     | `schedules`                                     | `references/schedules.md`                                                                   |
@@ -189,7 +190,12 @@ Frontend deployments:
 - Build locally first when the app has a build step.
 - Ensure frontend runtime env vars are configured with the correct framework prefix before deployment.
 - Use `npx @insforge/cli deployments deploy <dir>` for frontend source directories. Do not deploy generated output directories unless the deployment reference explicitly calls for it.
-- See `references/deployments-deploy.md`.
+- See `references/deployments/deploy.md`.
+
+Custom domains:
+
+- Use `npx @insforge/cli domains ...` for custom domains, Cloudflare Registrar, DNS sync, and SSL verification.
+- See `references/deployments/domains.md`.
 
 Backend compute services:
 
