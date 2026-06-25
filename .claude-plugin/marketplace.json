@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "InsForge skills for coding agents — the backend platform for AI-native developers.",
-    "version": "1.0.0"
+    "version": "1.2.0"
   },
   "plugins": [
     {
@@ -19,7 +19,7 @@
         "url": "https://insforge.dev"
       },
       "homepage": "https://insforge.dev",
-      "license": "MIT",
+      "license": "Apache-2.0",
       "keywords": [
         "insforge",
         "ai-native",
