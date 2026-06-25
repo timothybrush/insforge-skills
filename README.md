@@ -76,7 +76,7 @@ Diagnose errors, bugs, and performance issues in InsForge projects. This skill g
 <details>
 <summary><strong>insforge-integrations</strong> - Third-Party Auth Provider Integrations</summary>
 
-Integrate third-party authentication providers with InsForge for Row Level Security (RLS), plus the OKX x402 onchain payment facilitator. Each integration covers JWT configuration, token signing, and InsForge client setup:
+Connect external providers to InsForge. The auth-provider guides cover JWT configuration, token signing, and InsForge client setup for Row Level Security (RLS); the OKX x402 guide is a separate onchain payment-facilitator flow:
 
 - **Auth0**: Post Login Action, Auth0 v4 SDK, custom claim embedding
 - **Clerk**: JWT Template config, client-side `getToken()` flow
@@ -84,7 +84,7 @@ Integrate third-party authentication providers with InsForge for Row Level Secur
 - **Stytch**: Magic link flow, server-side session validation
 - **WorkOS**: AuthKit middleware, server-side JWT signing
 - **Better Auth**: Framework-agnostic auth/bridge primitives, RLS policies, client hook
-- **OKX x402**: Onchain pay-per-use billing via the x402 payment facilitator
+- **OKX x402**: Onchain pay-per-use billing via the x402 payment facilitator (not an auth provider)
 
 **Key distinction**: Use these guides when connecting an external auth provider (or the x402 payment facilitator) to InsForge. For InsForge's built-in authentication, use the **insforge** skill instead.
 
