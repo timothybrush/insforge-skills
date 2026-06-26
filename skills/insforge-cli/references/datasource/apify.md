@@ -16,7 +16,7 @@ Opens the Apify OAuth flow and stores a refreshable token in InsForge. After a s
 npx @insforge/cli datasource apify login
 ```
 
-Fetches the InsForge-managed token, ensures the Apify CLI is installed (`apify-ultimate-scraper` drives it), runs `apify login --token <token>` (no browser), and installs Apify's official agent skills. Verify with `apify info`.
+Fetches the InsForge-managed token, installs the Apify CLI via npm if it is missing, runs `apify login --token <token>` (no browser), and installs Apify's official agent skills (including `apify-ultimate-scraper`, the scraping playbook used in step 3). Verify with `apify info`.
 
 **Hard rule:** never run plain `apify login` (browser OAuth). On any Apify `401` or "not logged in" error, re-run `login`; InsForge re-fetches a fresh token. Do not fall back to browser-based login under any circumstance.
 
@@ -36,15 +36,20 @@ Choose the landing strategy by result size. The target is whatever satisfies the
 | Persist short/medium | Write an InsForge edge function that fetches the Apify dataset and upserts rows into a table. Deploy with `npx @insforge/cli functions deploy`. |
 | Long-running or large dataset | Use InsForge Fly compute (`npx @insforge/cli compute deploy`). Paginate the dataset and upsert in batches to stay within memory limits. |
 
-**Getting the Apify token inside the handler.** An edge function or compute job reads two injected env vars (`INSFORGE_BASE_URL` and `API_KEY`) and fetches a fresh Apify token at runtime:
+**Getting the Apify token inside the handler.** The handler fetches a fresh Apify token at runtime:
 
 ```
-GET ${INSFORGE_BASE_URL}/api/datasources/apify/token
-Authorization: Bearer ${API_KEY}
+GET  <INSFORGE_BASE_URL>/api/datasources/apify/token
+Authorization: Bearer <project admin key>
 → { "accessToken": "..." }
 ```
 
-Use that `accessToken` for Apify API calls. The token is short-lived, so **do not cache it for the whole run**: a short edge function fetches it once at the start (it finishes well before expiry); a long compute job fetches it per batch, or re-fetches and retries on a `401`. InsForge always returns a freshly refreshed token, so no personal API key needed.
+Where those two values come from depends on the target:
+
+- **Edge function:** `INSFORGE_BASE_URL` and `API_KEY` (the project admin key) are injected automatically. Read them with `Deno.env.get('INSFORGE_BASE_URL')` / `Deno.env.get('API_KEY')` and use `API_KEY` as the bearer. Nothing to configure.
+- **Fly compute:** nothing is auto-injected. Set both yourself at deploy time (`compute deploy --env` / `--env-file`): the base URL, and the project admin `ik_…` key. Give the admin key a distinct name (for example `INSFORGE_ADMIN_KEY`) so it does not collide with any `API_KEY` your app already uses for something else, and read that name in the handler. A missing or wrong value here surfaces as a malformed request or a `401` from the token endpoint.
+
+Use that `accessToken` for Apify API calls. The token is short-lived, so **do not cache it for the whole run**: a short edge function fetches it once at the start (it finishes well before expiry); a long compute job fetches it per batch, or re-fetches and retries on a `401`. InsForge always returns a freshly refreshed token, so no personal Apify API key needs to be stored.
 
 ## 5. Recurring runs (optional)
 
