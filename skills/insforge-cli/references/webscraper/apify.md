@@ -1,11 +1,11 @@
-# Apify data source
+# Apify web scraper
 
-> ⚠️ **Private beta.** The Apify data source is rolling out to early-access projects, and is **cloud-only**. Self-hosted backends don't expose the `/datasources/apify/*` endpoints, so connecting and scraping through InsForge won't work there. If `insforge datasource apify connect` fails with `HTTP 404`, this project doesn't have it enabled yet; wait for the rollout or ask the InsForge team to enable it.
+> ⚠️ **Private beta.** The Apify web scraper is rolling out to early-access projects, and is **cloud-only**. Self-hosted backends don't expose the `/webscraper/apify/*` endpoints, so connecting and scraping through InsForge won't work there. If `insforge webscraper apify connect` fails with `HTTP 404`, this project doesn't have it enabled yet; wait for the rollout or ask the InsForge team to enable it.
 
 ## 1. Connect (one-time)
 
 ```bash
-npx @insforge/cli datasource apify connect
+npx @insforge/cli webscraper apify connect
 ```
 
 Opens the Apify OAuth flow and stores a refreshable token in InsForge. After a successful connect the CLI automatically runs the auth bridge (step 2) so the local agent is immediately usable.
@@ -13,7 +13,7 @@ Opens the Apify OAuth flow and stores a refreshable token in InsForge. After a s
 ## 2. Auth bridge (per machine)
 
 ```bash
-npx @insforge/cli datasource apify login
+npx @insforge/cli webscraper apify login
 ```
 
 Fetches the InsForge-managed token, installs the Apify CLI via npm if it is missing, runs `apify login --token <token>` (no browser), and installs Apify's official agent skills (including `apify-ultimate-scraper`, the scraping playbook used in step 3). Verify with `apify info`.
@@ -39,7 +39,7 @@ Choose the landing strategy by result size. The target is whatever satisfies the
 **Getting the Apify token inside the handler.** The handler fetches a fresh Apify token at runtime:
 
 ```
-GET  <INSFORGE_BASE_URL>/api/datasources/apify/token
+GET  <INSFORGE_BASE_URL>/api/webscraper/apify/token
 Authorization: Bearer <project admin key>
 → { "accessToken": "..." }
 ```
