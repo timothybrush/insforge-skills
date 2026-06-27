@@ -81,7 +81,7 @@ If not authenticated, run `npx @insforge/cli login`. If no project is linked, us
 | Logs and health checks                                                                             | `logs`, `diagnose`                              | `references/diagnostics.md`                                                                 |
 | Built-in documentation lookup                                                                      | `docs`                                          | this file                                                                                   |
 | PostHog setup                                                                                      | `posthog setup`                                 | `references/posthog.md`                                                                     |
-| Apify data source (connect, auth bridge, scrape, land, schedule)                                   | `datasource apify`                              | `references/datasource/apify.md`                                                            |
+| Apify web scraper (connect, auth bridge, scrape, land, schedule)                                   | `webscraper apify`                              | `references/webscraper/apify.md`                                                            |
 
 ## Database Workflow
 
@@ -315,11 +315,11 @@ For application code with InsForge or `@insforge/sdk`, use the `insforge` app-in
 - ⚠️ `posthog setup` alone does NOT instrument the app: no env vars, no SDK, no events until the wizard step happens. The wizard is interactive and may open a browser; ask the user to run it in their real terminal, or instrument manually using the printed `phc_` key/host (PostHog's public client key, safe in frontend env vars).
 - Cloud only: self-hosted backends don't expose the integration. Do not substitute a `phc_` key from a separate PostHog account into app env vars — the Analytics page reads from the server-side connection that only `posthog setup` populates; use the key it prints.
 
-## Apify data source
+## Apify web scraper
 
-- `npx @insforge/cli datasource apify connect` — one-time OAuth connect; stores a refreshable token in InsForge.
-- `npx @insforge/cli datasource apify login` — auth bridge: fetches the InsForge-managed token, runs `apify login --token`, and installs Apify's official agent skills. Never run plain `apify login` (browser OAuth). On any Apify `401` / "not logged in", re-run `login`.
-- See `references/datasource/apify.md` for the full scrape → land → schedule workflow and size-based landing strategy.
+- `npx @insforge/cli webscraper apify connect` — one-time OAuth connect; stores a refreshable token in InsForge.
+- `npx @insforge/cli webscraper apify login` — auth bridge: fetches the InsForge-managed token, runs `apify login --token`, and installs Apify's official agent skills. Never run plain `apify login` (browser OAuth). On any Apify `401` / "not logged in", re-run `login`.
+- See `references/webscraper/apify.md` for the full scrape → land → schedule workflow and size-based landing strategy.
 
 ## Non-Interactive CI/CD
 
