@@ -90,28 +90,43 @@ const { data, error } = await insforge.database.rpc('get_user_stats', { user_id:
 
 ## Selecting a Schema
 
-Queries hit the `public` schema by default. To target a custom schema, chain `.schema()` — the table name stays bare (it maps to PostgREST's `Accept-Profile`/`Content-Profile` headers):
+Queries target the `public` schema by default — reach for `.schema()` only when you need a different one. The table name stays bare; `.schema()` maps to PostgREST's `Accept-Profile` (reads) / `Content-Profile` (writes) headers and chains in front of `from()` and `rpc()`:
 
 ```javascript
-const { data } = await insforge.database
+const { data, error } = await insforge.database
   .schema('analytics')
   .from('events')
-  .select('*')
+  .select('id, name, occurred_at')
 
-await insforge.database.schema('analytics').rpc('rollup', { day: '2026-01-01' })
+// Writes chain the same way
+const { error: insertError } = await insforge.database
+  .schema('analytics')
+  .from('events')
+  .insert([{ name: 'signup' }])
+
+const { data: rollup, error: rpcError } = await insforge.database
+  .schema('analytics')
+  .rpc('rollup', { day: '2026-01-01' })
 ```
 
-Or set a default schema for every query on the client:
+To make every query use one schema, set the default when you create the client (omit it to stay on `public`):
 
 ```javascript
 const insforge = createClient({
-  baseUrl: '...',
-  anonKey: '...',
+  baseUrl: process.env.NEXT_PUBLIC_INSFORGE_URL,
+  anonKey: process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY,
   db: { schema: 'analytics' },
 })
 ```
 
-The schema must exist on the backend. Access is gated by grants + RLS exactly like `public`: a custom schema is reachable over the data API, but its tables stay unreadable to `anon`/`authenticated` until you grant them (e.g. in the migration that creates the table). On an older backend that doesn't expose the schema, the request fails with PostgREST `PGRST106` ("schema must be one of: public") rather than silently falling back.
+**You must grant access yourself.** On v2.2.3+ backends every non-internal schema you create is automatically reachable over the data API, but a new schema's tables stay **unreadable to `anon`/`authenticated` until you grant them** — exposure is not access. Grant in the same migration that creates the table, then RLS filters rows exactly as in `public`:
+
+```sql
+GRANT USAGE ON SCHEMA analytics TO anon, authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA analytics TO anon, authenticated;
+```
+
+**Don't target InsForge-internal schemas.** Platform schemas (`auth`, `storage`, `system`, `payments`, …) are never exposed over the data API — keep app data in `public` or your own schemas so you never collide with them. Pointing `.schema()` at an internal schema (or any schema an older backend doesn't expose) fails with PostgREST `PGRST106` ("The schema must be one of the following: ...") rather than silently falling back to `public`.
 
 ## Filters
 
