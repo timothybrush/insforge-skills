@@ -99,25 +99,27 @@ export default function Page() {
 
 - Create the client once with `createClient({ baseUrl, anonKey })`
 - Use Clerk's `useAuth()` to get `getToken`
-- In a `useEffect` keyed on `isSignedIn`, call `getToken({ template: 'insforge' })` and pipe the result into `client.setAccessToken(token)`
+- In a `useEffect` keyed on `isSignedIn` and Clerk `userId`, call `getToken({ template: 'insforge' })` and pipe the result into `client.setAccessToken(token)`
 - Clerk JWT templates default to **60-second expiry** — refresh the token on a ~50-second interval while the user is signed in; clear the token on sign-out
+- For the initial token or a changed Clerk user, use the default `SIGNED_IN` behavior; for periodic same-user token rotation, pass `AuthChangeEvent.TOKEN_REFRESHED` so Realtime keeps the existing socket and uses the fresh JWT on the next handshake
 - The template name `'insforge'` must match the Clerk dashboard exactly
-- `@insforge/sdk`'s `accessToken` config field (deprecated alias: `edgeFunctionToken`) is a **static string**, not a function — it cannot auto-refresh on its own, which is why we use `client.setAccessToken()` imperatively (it updates the HTTP client and the realtime token manager together)
+- `@insforge/sdk`'s `accessToken` config field (deprecated alias: `edgeFunctionToken`) is a **static string**, not a function — it cannot auto-refresh on its own, which is why we use `client.setAccessToken()` imperatively
 - This hook uses Clerk hooks, so the file must start with `'use client'`
 
 ```tsx
 // lib/insforge.ts
 'use client';
 
-import { createClient, type InsForgeClient } from '@insforge/sdk';
+import { AuthChangeEvent, createClient, type InsForgeClient } from '@insforge/sdk';
 import { useAuth } from '@clerk/nextjs';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 const TOKEN_REFRESH_MS = 50_000; // Clerk template tokens expire in 60s by default
 
 export function useInsforgeClient(): { client: InsForgeClient; isReady: boolean } {
-  const { getToken, isSignedIn } = useAuth();
+  const { getToken, isSignedIn, userId } = useAuth();
   const [isReady, setIsReady] = useState(false);
+  const currentUserIdRef = useRef<string | null>(null);
 
   const client = useMemo(
     () =>
@@ -129,8 +131,9 @@ export function useInsforgeClient(): { client: InsForgeClient; isReady: boolean 
   );
 
   useEffect(() => {
-    if (!isSignedIn) {
+    if (!isSignedIn || !userId) {
       client.setAccessToken(null);
+      currentUserIdRef.current = null;
       setIsReady(false);
       return;
     }
@@ -140,11 +143,23 @@ export function useInsforgeClient(): { client: InsForgeClient; isReady: boolean 
       try {
         const token = await getToken({ template: 'insforge' });
         if (cancelled) return;
-        client.setAccessToken(token ?? null);
-        setIsReady(!!token);
+        if (!token) {
+          client.setAccessToken(null);
+          currentUserIdRef.current = null;
+          setIsReady(false);
+          return;
+        }
+        const event =
+          currentUserIdRef.current === userId
+            ? AuthChangeEvent.TOKEN_REFRESHED
+            : AuthChangeEvent.SIGNED_IN;
+        client.setAccessToken(token, event);
+        currentUserIdRef.current = userId;
+        setIsReady(true);
       } catch (err) {
         if (cancelled) return;
         client.setAccessToken(null);
+        currentUserIdRef.current = null;
         setIsReady(false);
         console.error('Failed to refresh Clerk token for InsForge client', err);
       }
@@ -156,7 +171,7 @@ export function useInsforgeClient(): { client: InsForgeClient; isReady: boolean 
       cancelled = true;
       clearInterval(id);
     };
-  }, [client, getToken, isSignedIn]);
+  }, [client, getToken, isSignedIn, userId]);
 
   return { client, isReady };
 }
