@@ -218,6 +218,15 @@ export function useInsforgeClient(): { client: InsForgeClient; isReady: boolean 
     }
 
     const userId = session.data.user.id;
+
+    // User switched (A → B) without signing out first: drop the previous user's
+    // token and mark not-ready before the async fetch, so no request goes out
+    // authenticated as the old user while the new token is in flight.
+    if (currentUserIdRef.current !== null && currentUserIdRef.current !== userId) {
+      client.setAccessToken(null);
+      setIsReady(false);
+    }
+
     let cancelled = false;
     const refresh = async () => {
       try {

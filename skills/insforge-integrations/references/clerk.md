@@ -99,7 +99,7 @@ export default function Page() {
 
 - Create the client once with `createClient({ baseUrl, anonKey })`
 - Use Clerk's `useAuth()` to get `getToken`
-- In a `useEffect` keyed on `isSignedIn` and Clerk `userId`, call `getToken({ template: 'insforge' })` and pipe the result into `client.setAccessToken(token)`
+- In a `useEffect` keyed on `isSignedIn` and Clerk `userId`, call `getToken({ template: 'insforge' })` and pipe the result into `client.setAccessToken(token, event)` (see the next bullet for choosing `event`)
 - Clerk JWT templates default to **60-second expiry** — refresh the token on a ~50-second interval while the user is signed in; clear the token on sign-out
 - For the initial token or a changed Clerk user, use the default `SIGNED_IN` behavior; for periodic same-user token rotation, pass `AuthChangeEvent.TOKEN_REFRESHED` so Realtime keeps the existing socket and uses the fresh JWT on the next handshake
 - The template name `'insforge'` must match the Clerk dashboard exactly
@@ -136,6 +136,14 @@ export function useInsforgeClient(): { client: InsForgeClient; isReady: boolean 
       currentUserIdRef.current = null;
       setIsReady(false);
       return;
+    }
+
+    // User switched (A → B) without signing out first: drop the previous user's
+    // token and mark not-ready before the async fetch, so no request goes out
+    // authenticated as the old user while the new token is in flight.
+    if (currentUserIdRef.current !== null && currentUserIdRef.current !== userId) {
+      client.setAccessToken(null);
+      setIsReady(false);
     }
 
     let cancelled = false;
@@ -176,6 +184,8 @@ export function useInsforgeClient(): { client: InsForgeClient; isReady: boolean 
   return { client, isReady };
 }
 ```
+
+> **SDK version note.** The two-arg `client.setAccessToken(token, event)` and the `AuthChangeEvent` import require SDK **≥ 1.4.4**. On SDK **1.3.x**, drop the second argument (and the `AuthChangeEvent` import) and call `client.setAccessToken(token)` — it still updates both HTTP and realtime auth, but a same-user refresh may reconnect the socket. On SDK **< 1.3.0** the public method doesn't exist; use the `setBridgeToken` legacy fallback shown in the Better Auth reference.
 
 ## Database setup
 
