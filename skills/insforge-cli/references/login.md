@@ -14,6 +14,8 @@ npx @insforge/cli login [options]
 |--------|-------------|
 | `--user-api-key <key>` | Authenticate directly with a `uak_` user API key (no browser, no prompt) — best for headless / agent / CI use |
 | `--email` | Use email/password login instead of OAuth |
+| `--no-browser` | Print the sign-in URL and exit; finish later with `--callback-url`. For sandboxes where the browser cannot reach the CLI's local callback server |
+| `--callback-url <url>` | Complete a `--no-browser` login by pasting the URL the browser was redirected to |
 | `--client-id <id>` | Custom OAuth client ID |
 
 ## Authentication Methods
@@ -27,6 +29,24 @@ npx @insforge/cli login
 ```
 
 The CLI starts a local callback server, opens the browser, and waits up to 5 minutes for you to authorize.
+
+### Sandboxed OAuth (two-step) — when the browser can't reach the CLI
+
+In sandboxed environments (the ChatGPT app, remote/SSH sessions, containers), the browser runs on the host but the CLI's `127.0.0.1` callback server is inside the sandbox, so the default flow hangs forever. Use the two-step flow instead (requires `@insforge/cli` ≥ 0.2):
+
+```bash
+# Step 1 — print the sign-in URL (PKCE state is saved to ~/.insforge/pending-login.json, valid ~10 min)
+npx @insforge/cli login --no-browser --json
+```
+
+Have the user open `auth_url` and sign in. Their browser will land on a `http://127.0.0.1:.../callback?...` page that **cannot connect — this is expected**. Ask them to copy the full URL from the address bar, then:
+
+```bash
+# Step 2 — redeem the pasted callback URL
+npx @insforge/cli login --callback-url "http://127.0.0.1:PORT/callback?code=...&state=..." --json
+```
+
+Both steps must run with the same `$HOME` so the pending login file is shared.
 
 ### User API Key (direct) — recommended for headless / agent / CI
 
@@ -66,6 +86,10 @@ npx @insforge/cli login
 
 # Headless / agent / CI: user API key login (no browser)
 npx @insforge/cli login --user-api-key "$INSFORGE_USER_API_KEY" --json
+
+# Sandbox (e.g. ChatGPT app): two-step OAuth — user signs in on the host browser
+npx @insforge/cli login --no-browser --json
+npx @insforge/cli login --callback-url "<url copied from the browser address bar>" --json
 
 # Email/password login
 npx @insforge/cli login --email
