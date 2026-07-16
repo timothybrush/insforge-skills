@@ -1,0 +1,4 @@
+interface:
+  display_name: "InsForge"
+  short_description: "Build app features with the InsForge SDK: database, auth, storage, functions, AI, realtime, email, and payments."
+  brand_color: "#17B26A"

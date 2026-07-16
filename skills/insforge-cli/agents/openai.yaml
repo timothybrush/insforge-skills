@@ -1,0 +1,4 @@
+interface:
+  display_name: "InsForge CLI"
+  short_description: "Manage InsForge backend infrastructure with the CLI: projects, SQL, migrations, RLS, functions, storage, deployments, and diagnostics."
+  brand_color: "#17B26A"

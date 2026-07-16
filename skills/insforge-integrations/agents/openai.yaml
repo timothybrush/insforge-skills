@@ -1,0 +1,4 @@
+interface:
+  display_name: "InsForge Integrations"
+  short_description: "Wire external auth providers (Clerk, Auth0, WorkOS, Kinde, Stytch, Better Auth) or OKX x402 payments into InsForge."
+  brand_color: "#17B26A"

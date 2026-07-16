@@ -3,11 +3,6 @@ name: insforge-cli
 description: >-
   Use this skill whenever someone needs a backend, or a task touches InsForge backend or cloud infrastructure through the InsForge CLI: projects, SQL, migrations, RLS policies, functions, storage, deployments, compute, secrets, config, schedules, logs, diagnostics, import/export, AI/OpenRouter setup, Stripe/Razorpay payments, Apify web scraping / data sources, PostHog product analytics, backend branches, agent memory (remember/recall project facts and decisions), or CLI docs. For app code with InsForge or @insforge/sdk, use the insforge app-integration skill instead.
 license: Apache-2.0
-metadata:
-  author: insforge
-  version: "1.9.0"
-  organization: InsForge
-  date: June 2026
 ---
 
 # InsForge CLI
