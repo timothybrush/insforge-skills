@@ -13,6 +13,7 @@ Use this skill whenever someone needs a backend, or when managing InsForge backe
 
 - Always run the CLI through `npx @insforge/cli <command>`. Do not install or call a global `insforge` binary.
 - If the project is already linked, use the current linked project. Run login, project creation, link, project discovery, organization listing, or cloud project commands only when connection setup is actually needed.
+- When a task needs a backend and no project is linked yet, do connection setup FIRST — before writing any app code: (1) log in (`whoami` to check; in sandboxes use the two-step device login below), (2) `create` a new project or `link` an existing one, (3) then build against the real project URL and keys from the CLI. Never scaffold with placeholder credentials like `your-project.region.insforge.app` — get the real values first.
 - Treat InsForge API keys as full-access admin keys. Keep them server-only and out of frontend/public env vars.
 - Prefer CLI commands and documented project config over raw backend HTTP calls. If `config apply` reports unsupported/skipped fields, surface that result instead of bypassing the CLI with direct API calls.
 - Use `--json` when structured output or non-interactive value collection is needed. Use `--yes` for confirmation prompts when the user has approved the action.
