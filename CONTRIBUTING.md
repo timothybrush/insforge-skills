@@ -22,13 +22,15 @@ name: skill-name           # Required: lowercase, hyphens only, matches director
 description: |             # Required: clear description of what the skill does
   Description here...
 license: Apache-2.0        # Optional: license identifier
-metadata:                  # Optional: additional metadata
-  author: insforge
-  version: "1.0.0"
 ---
 
 # Skill content in Markdown...
 ```
+
+Do not add a `metadata:` block to the frontmatter — the OpenAI plugin
+submission portal rejects skills that carry one. User-facing interface
+settings (display name, short description, brand color) belong in the
+skill's `agents/openai.yaml` under `interface:` instead.
 
 ### Documentation Files
 
