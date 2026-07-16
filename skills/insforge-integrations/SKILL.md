@@ -5,11 +5,6 @@ description: >-
   Stytch, Better Auth) into InsForge for JWT-based RLS, or when adding the
   OKX x402 payment facilitator for onchain pay-per-use billing.
 license: Apache-2.0
-metadata:
-  author: insforge
-  version: "1.2.0"
-  organization: InsForge
-  date: April 2026
 ---
 
 # InsForge Integrations

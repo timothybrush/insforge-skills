@@ -9,11 +9,6 @@ description: >-
   pre-launch readiness), or when the user has an error but doesn't know where
   to start.
 license: Apache-2.0
-metadata:
-  author: insforge
-  version: "2.0.0"
-  organization: InsForge
-  date: May 2026
 ---
 
 # InsForge Debug

@@ -47,7 +47,7 @@ This repository follows the [Agent Skills Open Standard](https://agentskills.io/
 
 Each skill contains a `SKILL.md` with:
 
-1. **YAML Frontmatter**: Required `name` and `description` fields, optional `license` and `metadata`
+1. **YAML Frontmatter**: Required `name` and `description` fields, optional `license`. No `metadata:` block — the OpenAI plugin submission portal rejects it; interface settings go in the skill's `agents/openai.yaml`
 2. **Markdown Body**: Instructions, examples, and references to module documentation
 
 ### Documentation Pattern
