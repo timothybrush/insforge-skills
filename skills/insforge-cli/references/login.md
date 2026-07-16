@@ -14,6 +14,7 @@ npx @insforge/cli login [options]
 |--------|-------------|
 | `--user-api-key <key>` | Authenticate directly with a `uak_` user API key (no browser, no prompt) — best for headless / agent / CI use |
 | `--email` | Use email/password login instead of OAuth |
+| `--device` | Device login (RFC 8628): user approves a short code on the dashboard while the CLI polls — use this in sandboxes (ChatGPT app, SSH, containers) |
 | `--client-id <id>` | Custom OAuth client ID |
 
 ## Authentication Methods
@@ -27,6 +28,36 @@ npx @insforge/cli login
 ```
 
 The CLI starts a local callback server, opens the browser, and waits up to 5 minutes for you to authorize.
+
+### Device login (`--device`) — use this in sandboxes
+
+In sandboxed environments (the ChatGPT app, remote/SSH sessions, containers), the browser runs on the host but the CLI's `127.0.0.1` callback server is inside the sandbox, so the default flow can never complete (it waits until its callback timeout). Use the device flow instead (requires `@insforge/cli` ≥ 0.2): no callback and nothing to paste — the user approves a short code in their browser while the CLI polls.
+
+**Run it as two steps.** `login --device` prints the link, then keeps running until the user approves — but most agent harnesses only return a command's output when the process exits, so a single blocking run shows you nothing to relay. Bound the first run to capture the link, relay it, then rerun to complete (the rerun resumes the SAME pending code from `~/.insforge/pending-device.json`):
+
+```bash
+# Step 1 — capture the verification link (process is killed after 15s; that's expected)
+timeout 15 npx @insforge/cli login --device --json 2>&1 || true
+```
+
+Output includes the link and code, e.g.:
+
+```text
+To sign in, ask the user to open:
+
+  https://insforge.dev/auth/device?user_code=BCDF-GHJK
+
+and confirm the code BCDF-GHJK. Waiting for approval...
+```
+
+Relay that link and code to the user. They open it, check the code matches, and click **Authorize** — nothing to type or paste. Then:
+
+```bash
+# Step 2 — after relaying (or once the user says they approved): resume and complete
+npx @insforge/cli login --device --json
+```
+
+If the user already approved, step 2 completes immediately with the `--json` success object; otherwise it polls until they do. Codes expire after 15 minutes; both steps must run with the same `$HOME`. In an interactive terminal (a human at a shell), skip the two-step dance — just run `npx @insforge/cli login --device` and wait.
 
 ### User API Key (direct) — recommended for headless / agent / CI
 
@@ -66,6 +97,10 @@ npx @insforge/cli login
 
 # Headless / agent / CI: user API key login (no browser)
 npx @insforge/cli login --user-api-key "$INSFORGE_USER_API_KEY" --json
+
+# Sandbox (e.g. ChatGPT app): device login, two steps — capture link, relay, resume
+timeout 15 npx @insforge/cli login --device --json 2>&1 || true
+npx @insforge/cli login --device --json
 
 # Email/password login
 npx @insforge/cli login --email
