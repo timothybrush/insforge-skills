@@ -14,8 +14,7 @@ npx @insforge/cli login [options]
 |--------|-------------|
 | `--user-api-key <key>` | Authenticate directly with a `uak_` user API key (no browser, no prompt) — best for headless / agent / CI use |
 | `--email` | Use email/password login instead of OAuth |
-| `--no-browser` | Print the sign-in URL and exit; finish later with `--callback-url`. For sandboxes where the browser cannot reach the CLI's local callback server |
-| `--callback-url <url>` | Complete a `--no-browser` login by pasting the URL the browser was redirected to |
+| `--device` | Device login (RFC 8628): user approves a short code on the dashboard while the CLI polls — use this in sandboxes (ChatGPT app, SSH, containers) |
 | `--client-id <id>` | Custom OAuth client ID |
 
 ## Authentication Methods
@@ -30,23 +29,27 @@ npx @insforge/cli login
 
 The CLI starts a local callback server, opens the browser, and waits up to 5 minutes for you to authorize.
 
-### Sandboxed OAuth (two-step) — when the browser can't reach the CLI
+### Device login (`--device`) — use this in sandboxes
 
-In sandboxed environments (the ChatGPT app, remote/SSH sessions, containers), the browser runs on the host but the CLI's `127.0.0.1` callback server is inside the sandbox, so the default flow hangs forever. Use the two-step flow instead (requires `@insforge/cli` ≥ 0.2):
-
-```bash
-# Step 1 — print the sign-in URL (PKCE state is saved to ~/.insforge/pending-login.json, valid ~10 min)
-npx @insforge/cli login --no-browser --json
-```
-
-Have the user open `auth_url` and sign in. Their browser will land on a `http://127.0.0.1:.../callback?...` page that **cannot connect — this is expected**. Ask them to copy the full URL from the address bar, then:
+In sandboxed environments (the ChatGPT app, remote/SSH sessions, containers), the browser runs on the host but the CLI's `127.0.0.1` callback server is inside the sandbox, so the default flow hangs forever. Use the device flow instead (requires `@insforge/cli` ≥ 0.2): no callback and nothing to paste — the user approves a short code in their browser while the CLI polls.
 
 ```bash
-# Step 2 — redeem the pasted callback URL
-npx @insforge/cli login --callback-url "http://127.0.0.1:PORT/callback?code=...&state=..." --json
+npx @insforge/cli login --device --json
 ```
 
-Both steps must run with the same `$HOME` so the pending login file is shared.
+The CLI prints a verification link and code, e.g.:
+
+```
+To sign in, ask the user to open:
+
+  https://insforge.dev/auth/device?user_code=BCDF-GHJK
+
+and confirm the code BCDF-GHJK. Waiting for approval...
+```
+
+Relay that link and code to the user. They open it, check the code matches, and click **Authorize** — the CLI completes by itself within seconds and prints the `--json` success object. Codes expire after 15 minutes.
+
+If the process is killed before the user approves (sandbox command timeout), just run `login --device` again with the same `$HOME`: it resumes the SAME pending code (saved in `~/.insforge/pending-device.json`), and if the user already approved, it completes immediately.
 
 ### User API Key (direct) — recommended for headless / agent / CI
 
@@ -87,9 +90,8 @@ npx @insforge/cli login
 # Headless / agent / CI: user API key login (no browser)
 npx @insforge/cli login --user-api-key "$INSFORGE_USER_API_KEY" --json
 
-# Sandbox (e.g. ChatGPT app): two-step OAuth — user signs in on the host browser
-npx @insforge/cli login --no-browser --json
-npx @insforge/cli login --callback-url "<url copied from the browser address bar>" --json
+# Sandbox (e.g. ChatGPT app): device login — user approves a code, CLI polls
+npx @insforge/cli login --device --json
 
 # Email/password login
 npx @insforge/cli login --email
