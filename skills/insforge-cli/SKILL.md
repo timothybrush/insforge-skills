@@ -1,7 +1,7 @@
 ---
 name: insforge-cli
 description: >-
-  Use this skill whenever someone needs a backend, or a task touches InsForge backend or cloud infrastructure through the InsForge CLI: projects, SQL, migrations, RLS policies, functions, storage, deployments, compute, secrets, config, schedules, logs, diagnostics, import/export, AI/OpenRouter setup, Stripe/Razorpay payments, Apify web scraping / data sources, PostHog product analytics, backend branches, agent memory (remember/recall project facts and decisions), or CLI docs. For app code with InsForge or @insforge/sdk, use the insforge app-integration skill instead.
+  Use this skill whenever someone needs a backend, or a task touches InsForge backend or cloud infrastructure through the InsForge CLI: projects, SQL, migrations, RLS policies, functions, storage, deployments, compute, secrets, config, schedules, logs, diagnostics, import/export, AI/OpenRouter setup, Stripe/Razorpay payments, Apify web scraping / data sources, PostHog product analytics, backend branches, agent memory (remember/recall project facts and decisions), reporting InsForge-side bugs or doc discrepancies (feedback), or CLI docs. For app code with InsForge or @insforge/sdk, use the insforge app-integration skill instead.
 license: Apache-2.0
 ---
 
@@ -18,6 +18,7 @@ Use this skill whenever someone needs a backend, or when managing InsForge backe
 - Prefer CLI commands and documented project config over raw backend HTTP calls. If `config apply` reports unsupported/skipped fields, surface that result instead of bypassing the CLI with direct API calls.
 - Use `--json` when structured output or non-interactive value collection is needed. Use `--yes` for confirmation prompts when the user has approved the action.
 - At the start of a non-trivial task on a linked project, run `npx @insforge/cli memory list` (cheap, no AI call) and recall any title relevant to the task before designing or debugging. Record decisions and gotchas with `memory remember` at the moment they happen. See `references/memory.md`.
+- When you hit a hurdle that is InsForge's fault — something that should work but doesn't, a capability you needed but isn't supported, instructions (docs/skill) that reality contradicts, or needless friction — report it with `npx @insforge/cli feedback` (see Feedback), then continue the user's task with a workaround. Never file feedback for problems in the user's own app code.
 
 ## Global Options
 
@@ -80,6 +81,7 @@ If not authenticated, run `npx @insforge/cli login` (opens a browser). For headl
 | Built-in documentation lookup                                                                      | `docs`                                          | this file                                                                                   |
 | PostHog setup                                                                                      | `posthog setup`                                 | `references/posthog.md`                                                                     |
 | Apify web scraper (connect, auth bridge, scrape, land, schedule)                                   | `webscraper apify`                              | `references/webscraper/apify.md`                                                            |
+| Report an InsForge-side bug, doc discrepancy, or design problem                                    | `feedback`                                      | this file                                                                                   |
 
 ## Database Workflow
 
@@ -309,6 +311,42 @@ Branching requires a backend version that supports it. If unavailable, report th
 - `npx @insforge/cli logs <source> [--limit <n>]` - source-specific backend logs.
 
 Typical log sources include `function.logs`, `function-deploy.logs`, `postgres.logs`, `postgrest.logs`, and `insforge.logs`. See `references/diagnostics.md` for common debugging scenarios and source selection.
+
+## Feedback
+
+When any part of the InsForge toolkit misbehaves — the backend platform, an SDK, the CLI, an agent skill, or the docs — report it to the InsForge team, then continue the task with a workaround. Only report InsForge-side issues, never problems in the user's own app code.
+
+```bash
+npx @insforge/cli feedback --json \
+  --type bug \
+  --component backend \
+  --title "db policies create returns 500 on uppercase table names" \
+  --detail "Creating an RLS policy on table \"Users\" returns 500; lowercase names work. Repro: create table with quoted uppercase name, then run policies create." \
+  --area db \
+  --command "insforge db policies create --table Users ..." \
+  --error "<verbatim error output>" \
+  --severity major
+```
+
+Required flags:
+
+- `--type`: the kind of hurdle you hit. Map from your situation:
+  - "This is not working" (it should, per docs/contract) → `bug`
+  - "I was instructed to do X, but reality required an alternative" → also `bug`, with `--doc` (where the instruction lives), `--expected` (what it claimed), and `--workaround` (what worked instead) — you can't know whether the instructions are stale or the product regressed, and those three fields let the team disambiguate
+  - "What I want to do is not supported" → `feature-request`
+  - "It works, but it was confusing or awkward" (unhelpful error, forced detour) → `friction`
+  - anything else → `other`
+- `--component`: where in the toolkit it lives — `backend` (platform/hosted services) | `sdk` | `cli` | `skills` (agent skill content) | `docs` | `other`.
+- `--title` and `--detail` (or `--file <path>`).
+- `--language`: required with `--component sdk` — which SDK, e.g. `js`, `python`, `flutter`, `swift`, `kotlin`, `rest-api`, or `multiple` if it spans SDKs. Also useful with `--component docs` for language-specific doc pages.
+
+Optional flags:
+
+- `--area`: product area — `db` | `auth` | `storage` | `functions` | `deployments` | `billing` | `ai` | `realtime` | `payments`. Orthogonal to `--component`: a broken storage upload in the Python SDK is `--component sdk --language python --area storage`.
+- `--workaround`: the alternative you used to get past the hurdle — always include it when you found one; it tells the team how blocking the issue is and often becomes the doc fix.
+- `--command` (the CLI/SDK call that surfaced it), `--error` (verbatim output; redacted and truncated automatically), `--expected` (what the docs/skill instructed or you expected) and `--doc "<page or skill section>"` for discrepancies, `--severity blocker|major|minor` (default `minor`).
+
+Keep `--detail` concise and InsForge-focused: what happened, what you expected, minimal repro. Do not paste user app data — emails, tokens, keys, IPs, and usernames are redacted locally before submission and long fields are truncated, but redaction is a safety net, not a license. No login required — works logged out and in OSS setups; project/org context is attached automatically when a cloud project is linked. Returns a feedback id on success (duplicate reports fold into the existing one and return its id).
 
 ## Documentation
 

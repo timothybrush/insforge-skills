@@ -144,3 +144,19 @@ Route by URL subsystem before drilling:
 
 1. **ai-assisted** (`diagnose --ai "<error or URL>"`) — get a starting hypothesis.
 2. **Verify** by re-checking the primitives the diagnosis names. Trust the primitive observations over the suggestion.
+
+## When the Root Cause Is InsForge Itself
+
+Some diagnoses end at an InsForge-side defect, not a project misconfiguration: a platform bug or regression, an SDK call that misbehaves, docs or a skill that contradict observed behavior, or a missing capability. A debug session is exactly where these get confirmed — report them while the evidence is in hand:
+
+```bash
+npx @insforge/cli feedback --json \
+  --type bug --component backend --area db \
+  --title "<one-line summary>" \
+  --detail "<what happened vs expected, minimal repro>" \
+  --command "<the failing call>" \
+  --error "<verbatim error from logs>" \
+  --workaround "<what you did instead>"
+```
+
+No login required; PII (emails, tokens, keys, usernames) is redacted locally. Use `--component sdk --language <lang>` for SDK defects; `--component docs` or `skills` with `--doc` and `--expected` when documentation contradicts reality; `--type feature-request` when the finding is "not supported". Then continue the user's task with the workaround — never block on the report, and never file feedback for problems in the user's own app code or config. Full flag reference: the **insforge-cli** skill's Feedback section.
