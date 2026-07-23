@@ -338,15 +338,15 @@ Required flags:
   - anything else → `other`
 - `--component`: where in the toolkit it lives — `backend` (platform/hosted services) | `sdk` | `cli` | `skills` (agent skill content) | `docs` | `other`.
 - `--title` and `--detail` (or `--file <path>`).
-- `--language`: required with `--component sdk` — which SDK, e.g. `js`, `python`, `flutter`, `swift`, `kotlin`, `rest-api`, or `multiple` if it spans SDKs. Also useful with `--component docs` for language-specific doc pages.
 
 Optional flags:
 
+- `--language`: **required when `--component sdk`** — which SDK, e.g. `js`, `python`, `flutter`, `swift`, `kotlin`, `rest-api`, or `multiple` if it spans SDKs. Also useful with `--component docs` for language-specific doc pages. Omit for other components.
 - `--area`: product area — `db` | `auth` | `storage` | `functions` | `deployments` | `billing` | `ai` | `realtime` | `payments`. Orthogonal to `--component`: a broken storage upload in the Python SDK is `--component sdk --language python --area storage`.
 - `--workaround`: the alternative you used to get past the hurdle — always include it when you found one; it tells the team how blocking the issue is and often becomes the doc fix.
 - `--command` (the CLI/SDK call that surfaced it), `--error` (verbatim output; redacted and truncated automatically), `--expected` (what the docs/skill instructed or you expected) and `--doc "<page or skill section>"` for discrepancies, `--severity blocker|major|minor` (default `minor`).
 
-Keep `--detail` concise and InsForge-focused: what happened, what you expected, minimal repro. Do not paste user app data — emails, tokens, keys, IPs, and usernames are redacted locally before submission and long fields are truncated, but redaction is a safety net, not a license. No login required — works logged out and in OSS setups; project/org context is attached automatically when a cloud project is linked. Returns a feedback id on success (duplicate reports fold into the existing one and return its id).
+Keep `--detail` concise and InsForge-focused: what happened, what you expected, minimal repro. Do not paste user app data — the CLI locally redacts common patterns (emails, known credential/key formats, secret assignments, public IPv4 addresses, home-directory usernames) and truncates long fields, but redaction is pattern-based: a safety net, not a license. No login required — works logged out and in OSS setups; project/org context is attached automatically when a cloud project is linked. Returns a feedback id on success (duplicate reports fold into the existing one and return its id).
 
 ## Documentation
 
