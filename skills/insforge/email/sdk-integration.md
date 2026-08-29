@@ -2,7 +2,7 @@
 
 Send custom transactional HTML emails via `insforge.emails.send`. Routes through AWS SES under per-project tenant identities, with automatic List-Unsubscribe headers and unsubscribe filtering.
 
-> **🛑 No SMTP, no third-party packages.** `insforge.emails.send()` works on every paid project — no `nodemailer` / `resend` / `sendgrid` / `mailgun` / `postmark`, no `SMTP_HOST`, no API keys. The platform manages the SES sender. Custom sender domain → dashboard, not `package.json`.
+> **🛑 No SMTP, no third-party packages.** `insforge.emails.send()` works on every paid project — no `nodemailer` / `resend` / `sendgrid` / `mailgun` / `postmark`, no `SMTP_HOST`, no provider API keys. The platform manages the SES sender. Server-only sends still authenticate with your own project API key (see below) — that is InsForge auth, not an email-provider credential. Custom sender domain → dashboard, not `package.json`.
 >
 > **Scope.** This module sends **custom** transactional emails (welcome, receipt, newsletter, alerts). For auth flows (signup verification, password reset, invites), use `insforge.auth.*` — those ship on **every plan**, also no SMTP.
 
@@ -21,11 +21,33 @@ const insforge = createClient({
 })
 ```
 
-The anon JWT is sufficient — **no user sign-in required** to call `emails.send`. A signed-in user JWT also works.
+`emails.send` requires an authenticated caller — **the anon key is not sufficient.** A signed-out client sends its anon key as the bearer credential, and the route rejects that with `401 Sending emails requires an authenticated user`. Sign the user in first: the SDK swaps the anon key for that user's JWT on the same client, and the call then succeeds.
+
+For server-only code with no signed-in user, authenticate as project admin instead:
+
+```javascript
+import { createAdminClient } from '@insforge/sdk'
+
+const admin = createAdminClient({
+  baseUrl: process.env.INSFORGE_URL,
+  apiKey: process.env.INSFORGE_API_KEY
+})
+```
+
+`admin.emails.send()` takes the same options as the examples below. Get the key with `npx -y @insforge/cli secrets get API_KEY` and keep it server-side — it is a full-access admin key, never a client bundle. See [SKILL.md](../SKILL.md).
 
 ## Send an Email
 
 ```javascript
+// emails.send uses whatever credential the client is holding, so the user
+// must be signed in first. Any flow in ../auth/sdk-integration.md works;
+// substitute the credentials your own sign-in form collects.
+const { error: signInError } = await insforge.auth.signInWithPassword({
+  email: 'user@example.com',
+  password: 'securepassword123',
+});
+if (signInError) throw signInError;
+
 const { data, error } = await insforge.emails.send({
   to: 'user@example.com',
   subject: 'Welcome to Acme',
@@ -95,11 +117,11 @@ Each address in `to`/`cc`/`bcc` counts as one delivery (per SES billing) — a s
 
 ## REST Fallback
 
-If you can't use the SDK (e.g. cURL, server-side calls without the JS SDK):
+If you can't use the SDK (e.g. cURL, server-side calls without the JS SDK), authenticate with a project admin API key (`ik_…`) or a signed-in user's JWT — the anon key is rejected here for the same reason it is rejected in the SDK:
 
 ```bash
 curl -X POST "$INSFORGE_URL/api/email/send-raw" \
-  -H "Authorization: Bearer $INSFORGE_ANON_KEY" \
+  -H "Authorization: Bearer $INSFORGE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "to": "user@example.com",
@@ -119,7 +141,8 @@ Success: `HTTP 200` with body `{}` (REST endpoint omits the wrapping; SDK adds `
 | `On-demand email service is only available for paid plans` | Free tier project | Upgrade billing in the InsForge dashboard |
 | `Rate limit exceeded. Try again in N minutes` | Hourly send cap reached | Wait `rateLimit.resetIn` seconds and retry, or upgrade plan |
 | `Invalid ARN provided` | Backend infra config issue (missing `AWS_ACCOUNT_ID` env on the cloud backend) | Not a client bug — file with InsForge support |
-| `401 Unauthorized` | Bad/missing `Authorization` header | Re-init SDK with correct `anonKey` |
+| `Sending emails requires an authenticated user` (`401 AUTH_INVALID_CREDENTIALS`) | Called with the anon key — no user is signed in | Sign the user in and retry on the same client (the SDK sends their JWT), or call server-side with a project admin API key. Re-checking `anonKey` will not fix this |
+| `401 Unauthorized` | Missing, malformed, or expired `Authorization` header | Confirm the header is sent; if a user JWT has expired, refresh the session and retry |
 | Email lands in spam | Cold SES tenant reputation | Warm up with a few low-volume sends; use a recognizable display name; avoid spammy HTML and link-heavy bodies |
 
 ## Common Mistakes
